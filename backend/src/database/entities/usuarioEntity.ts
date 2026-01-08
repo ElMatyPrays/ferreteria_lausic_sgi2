@@ -12,7 +12,7 @@ export class UsuarioEntity {
   @Column({ type: "varchar", length: 255 })
   email: string;
 
-  @Column({ type: "varchar", length: 255 })
+  @Column({name: "passwrd", type: "varchar", length: 255 })
   password: string;
 
   @Column({ type: "tinyint", default: 3 })
