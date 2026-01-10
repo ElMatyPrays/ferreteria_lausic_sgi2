@@ -32,7 +32,8 @@ export class ProductosService {
     const q = opts?.q?.trim();
 
     if (!q) {
-      return await this.repo().find({ order: { ID_producto: "DESC" } });
+      // ✅ lo nuevo queda abajo
+      return await this.repo().find({ order: { ID_producto: "ASC" } });
     }
 
     return await this.repo()
@@ -40,7 +41,8 @@ export class ProductosService {
       .where("p.nombre LIKE :q", { q: `%${q}%` })
       .orWhere("p.SKU LIKE :q", { q: `%${q}%` })
       .orWhere("p.codigo_barras LIKE :q", { q: `%${q}%` })
-      .orderBy("p.ID_producto", "DESC")
+      // ✅ lo nuevo queda abajo incluso con búsqueda
+      .orderBy("p.ID_producto", "ASC")
       .getMany();
   }
 

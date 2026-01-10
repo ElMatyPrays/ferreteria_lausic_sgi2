@@ -23,7 +23,7 @@ export class UsuariosService {
   async findAll(q?: string): Promise<UsuarioSafe[]> {
     const qb = this.repo.createQueryBuilder("u");
     if (q) qb.where("u.email LIKE :q OR u.nombre LIKE :q", { q: `%${q}%` });
-    const items = await qb.orderBy("u.ID_usuario", "DESC").getMany();
+    const items = await qb.orderBy("u.ID_usuario", "ASC").getMany();
     return items.map(toSafe);
   }
 

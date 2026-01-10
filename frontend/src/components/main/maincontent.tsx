@@ -37,7 +37,6 @@ import { FiSettings, FiRefreshCw, FiPlus } from "react-icons/fi";
    ========================= */
 const columnsBySection: Record<Section, Column[]> = {
   Productos: [
-    { key: "ID_producto", header: "ID", width: "90px" },
     { key: "SKU", header: "SKU", width: "140px" },
     { key: "codigo_barras", header: "Código de barras", width: "200px" },
     { key: "nombre", header: "Nombre" },
@@ -579,7 +578,7 @@ export default function MainContent({ section, venTab: venTabProp, onVenTabChang
 
       const newRow = { ...formData };
       if (idKey && !newRow[idKey]) newRow[idKey] = "ID-" + Math.random().toString(16).slice(2);
-      setBaseRows((prev) => [newRow, ...prev]);
+      setBaseRows((prev) => [...prev, newRow]);
       setModal("none");
       setNotifyMsg("¡Creado correctamente (demo)!");
       setModal("notify");

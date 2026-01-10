@@ -67,8 +67,10 @@ export class VentasService {
       }
     }
 
-    qb.orderBy("v.ID_venta", "DESC");
+    // ✅ orden natural: antiguo arriba, nuevo abajo
+    qb.orderBy("v.fecha", "ASC").addOrderBy("v.ID_venta", "ASC");
     return await qb.getMany();
+
   }
 
   async findById(id: number, includeItems = false) {
