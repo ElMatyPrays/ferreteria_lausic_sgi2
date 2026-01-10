@@ -110,15 +110,13 @@ type ModalKind = "none" | "create" | "edit" | "confirm" | "notify";
 export default function MainContent({ section, venTab: venTabProp, onVenTabChange }: MainContentProps) {
   const user = getUser();
   const role = user?.rol ?? "LECTOR";
-  console.log("ROLE:", role, "USER:", user);
 
   const isAdmin = role === "ADMIN";
   const isOperador = role === "OPERADOR";
   const isReader = role === "LECTOR";
 
-  // permisos
-  const canWrite = isAdmin || isOperador; // crear/editar
-  const canDelete = isAdmin; // eliminar solo admin
+  const canWrite = isAdmin || isOperador;
+  const canDelete = isAdmin;
 
   const [venTabState, setVenTabState] = useState<VentasSub>("Ventas");
   const venTab = venTabProp ?? venTabState;
@@ -135,7 +133,7 @@ export default function MainContent({ section, venTab: venTabProp, onVenTabChang
     else setBaseRows(demoRowsBySection[section] ?? []);
   }, [section, venTab]);
 
-  // Productos (también para Lista de ventas y Ventas)
+  // Productos
   const productosEnabled =
     section === "Productos" || (section === "Ventas" && (venTab === "Lista de ventas" || venTab === "Ventas"));
 
@@ -309,7 +307,6 @@ export default function MainContent({ section, venTab: venTabProp, onVenTabChang
   };
 
   const demoEnabled = !productosEnabled && !ventasEnabled && !listaVentasEnabled;
-
   const demoConfig: CrudConfig = {
     key: "demo",
     enabled: demoEnabled,
@@ -318,15 +315,13 @@ export default function MainContent({ section, venTab: venTabProp, onVenTabChang
     error: null,
   };
 
-  const configs: CrudConfig[] = [productosConfig, ventasConfig, listaVentasConfig, demoConfig];
-
   let active: CrudConfig;
   if (section === "Ventas") {
     if (venTab === "Ventas") active = ventasConfig;
     else if (venTab === "Lista de ventas") active = listaVentasConfig;
     else active = demoConfig;
   } else {
-    active = configs.find((c) => c.enabled) ?? demoConfig;
+    active = productosEnabled ? productosConfig : demoConfig;
   }
 
   const isListaVentas = active.key === "lista_ventas";
@@ -362,20 +357,20 @@ export default function MainContent({ section, venTab: venTabProp, onVenTabChang
   const [notifyMsg, setNotifyMsg] = useState<string>("");
 
   // =========================
-  // Ventas: SOLO productos
+  // Ventas: UI items (productos)
   // =========================
   type VentaItemUI = {
     tipo: "producto";
-    registroId?: number; // ID_registro_venta (cuando editas una venta existente)
+    registroId?: number;
     id: string; // ID_producto
     cantidad: string;
   };
 
-  // ✅ FIX TS: item base tipado (tipo literal "producto")
   const EMPTY_ITEM: VentaItemUI = { tipo: "producto", id: "", cantidad: "1" };
 
   const [ventaItems, setVentaItems] = useState<VentaItemUI[]>([]);
   const [ventaItemsOriginal, setVentaItemsOriginal] = useState<VentaItemUI[]>([]);
+  const [ventaBarcodes, setVentaBarcodes] = useState<string[]>([]);
 
   const round2 = (n: number) => Math.round(n * 100) / 100;
 
@@ -398,12 +393,87 @@ export default function MainContent({ section, venTab: venTabProp, onVenTabChang
     [ventaItems, productosRows]
   );
 
+  // ✅ mantener barcodes sincronizado con items (clave para no perderse)
+  useEffect(() => {
+    setVentaBarcodes((prev) => {
+      if (prev.length === ventaItems.length) return prev;
+      if (prev.length < ventaItems.length) return [...prev, ...new Array(ventaItems.length - prev.length).fill("")];
+      return prev.slice(0, ventaItems.length);
+    });
+  }, [ventaItems.length]);
+
+  // ✅ Auto-focus al abrir modal de venta
+  useEffect(() => {
+    if (active.key !== "ventas") return;
+    if (modal !== "create" && modal !== "edit") return;
+
+    setTimeout(() => {
+      const el = document.getElementById("venta-barcode-0") as HTMLInputElement | null;
+      el?.focus();
+      el?.select();
+    }, 0);
+  }, [modal, active.key]);
+
+  const findProductoByBarcode = (raw: string) => {
+    const code = String(raw || "").trim();
+    if (!code) return null;
+
+    const found =
+      (productosRows as any[]).find((r) => String((r as any).codigo_barras || "").trim() === code) ??
+      (productosRows as any[]).find((r) => String((r as any).SKU || "").trim() === code);
+
+    return found ? String((found as any).ID_producto) : null;
+  };
+
+  // ✅ Escaneo:
+  // - si el producto ya está en alguna fila => suma cantidad ahí
+  // - si no está:
+  //    - si la fila idx está vacía => lo pone ahí
+  //    - si la fila idx ya tiene producto => crea nueva fila con ese producto
+  const applyBarcodeToItem = (idx: number) => {
+    const code = (ventaBarcodes[idx] ?? "").trim();
+    if (!code) return;
+
+    const foundId = findProductoByBarcode(code);
+    if (!foundId) {
+      window.alert(`No se encontró producto para código: ${code}`);
+      return;
+    }
+
+    setVentaItems((prev) => {
+      const existingIndex = prev.findIndex((p) => p.id === foundId);
+      if (existingIndex !== -1) {
+        return prev.map((p, i) => {
+          if (i !== existingIndex) return p;
+          return { ...p, cantidad: String((Number(p.cantidad) || 0) + 1) };
+        });
+      }
+
+      if (!prev[idx]?.id) {
+        return prev.map((p, i) => (i === idx ? { ...p, id: foundId, cantidad: p.cantidad || "1" } : p));
+      }
+
+      return [...prev, { ...EMPTY_ITEM, id: foundId, cantidad: "1" }];
+    });
+
+    // limpiar el input de esa fila
+    setVentaBarcodes((prev) => prev.map((v, i) => (i === idx ? "" : v)));
+
+    // volver a enfocar el primer input (modo caja: solo escanear y escanear)
+    setTimeout(() => {
+      const el = document.getElementById("venta-barcode-0") as HTMLInputElement | null;
+      el?.focus();
+      el?.select();
+    }, 0);
+  };
+
   const closeModal = () => setModal("none");
 
   const openCreate = () => {
     if (active.key === "ventas") {
       setVentaItems([EMPTY_ITEM]);
       setVentaItemsOriginal([]);
+      setVentaBarcodes([""]);
       setFormData({
         fecha: new Date().toISOString().slice(0, 10),
         estado_pago: "false",
@@ -447,6 +517,7 @@ export default function MainContent({ section, venTab: venTabProp, onVenTabChang
         const initial: VentaItemUI[] = mapped.length ? mapped : [{ ...EMPTY_ITEM }];
         setVentaItems(initial);
         setVentaItemsOriginal(initial);
+        setVentaBarcodes(new Array(initial.length).fill(""));
 
         setFormData({
           fecha: String((row as any).fecha || "").slice(0, 10),
@@ -456,7 +527,7 @@ export default function MainContent({ section, venTab: venTabProp, onVenTabChang
         setModal("edit");
         return;
       } catch (err: any) {
-        console.error("Error cargando items de venta:", err);
+        console.error(err);
         setModal("none");
         setNotifyMsg(err?.message || "Error al cargar items de la venta");
         setModal("notify");
@@ -506,7 +577,6 @@ export default function MainContent({ section, venTab: venTabProp, onVenTabChang
         return;
       }
 
-      // demo
       const newRow = { ...formData };
       if (idKey && !newRow[idKey]) newRow[idKey] = "ID-" + Math.random().toString(16).slice(2);
       setBaseRows((prev) => [newRow, ...prev]);
@@ -520,7 +590,6 @@ export default function MainContent({ section, venTab: venTabProp, onVenTabChang
     }
   };
 
-  // ✅ EDIT: sincroniza items de venta (registro_venta)
   const submitEdit = async () => {
     if (currentIndex == null) return;
     const row = active.rows[currentIndex] as any;
@@ -530,7 +599,6 @@ export default function MainContent({ section, venTab: venTabProp, onVenTabChang
         const idVenta = Number(row.ID_venta);
         if (!Number.isInteger(idVenta) || idVenta <= 0) throw new Error("ID_venta inválido");
 
-        // 1) Validar items actuales del modal
         const currentItems = ventaItems.map((it, idx) => {
           const cantidad = Number(it.cantidad);
           const idProd = Number(it.id);
@@ -546,16 +614,13 @@ export default function MainContent({ section, venTab: venTabProp, onVenTabChang
           };
         });
 
-        // 2) Actualizar cabecera de venta (incluye total)
         await updateVenta(idVenta, {
           total: ventaTotal,
           fecha: formData.fecha ? String(formData.fecha) : undefined,
           estado_pago: formData.estado_pago === true || formData.estado_pago === "true" || formData.estado_pago === "1",
         });
 
-        // 3) Sincronizar registro_venta (delete/update/create)
         const prev = (ventaItemsOriginal ?? []).filter((x) => x.registroId != null);
-
         const prevByReg = new Map<number, VentaItemUI>();
         prev.forEach((p) => prevByReg.set(Number(p.registroId), p));
 
@@ -564,14 +629,12 @@ export default function MainContent({ section, venTab: venTabProp, onVenTabChang
           if (c.registroId != null) currentByReg.set(Number(c.registroId), c);
         });
 
-        // a) eliminados
+        // eliminados
         for (const [regId] of prevByReg.entries()) {
-          if (!currentByReg.has(regId)) {
-            await apiDeleteListaVenta(regId);
-          }
+          if (!currentByReg.has(regId)) await apiDeleteListaVenta(regId);
         }
 
-        // b) updates / cambio de producto
+        // updates / cambio producto
         for (const [regId, cur] of currentByReg.entries()) {
           const old = prevByReg.get(regId);
           if (!old) continue;
@@ -579,26 +642,23 @@ export default function MainContent({ section, venTab: venTabProp, onVenTabChang
           const oldProd = Number(old.id);
           const oldQty = Number(old.cantidad);
 
-          // si cambió producto: borrar viejo y crear nuevo
           if (oldProd !== cur.ID_producto) {
             await apiDeleteListaVenta(regId);
             await apiCreateListaVenta({ ID_venta: idVenta, ID_producto: cur.ID_producto, cantidad: cur.cantidad });
             continue;
           }
 
-          // si cambió cantidad
           if (oldQty !== cur.cantidad) {
             await apiUpdateListaVenta(regId, { cantidad: cur.cantidad });
           }
         }
 
-        // c) nuevos
+        // nuevos
         for (const cur of currentItems) {
           if (cur.registroId != null) continue;
           await apiCreateListaVenta({ ID_venta: idVenta, ID_producto: cur.ID_producto, cantidad: cur.cantidad });
         }
 
-        // 4) refrescar para stock y tablas
         await reloadVentas?.();
         await reloadProductos?.();
 
@@ -609,7 +669,6 @@ export default function MainContent({ section, venTab: venTabProp, onVenTabChang
         return;
       }
 
-      // CRUD normal
       if (active.update && active.buildUpdatePayload && active.idKey) {
         const id = Number(row[active.idKey]);
         if (!id) throw new Error(`${active.idKey} inválido`);
@@ -624,7 +683,6 @@ export default function MainContent({ section, venTab: venTabProp, onVenTabChang
         return;
       }
 
-      // demo
       setBaseRows((prev) => prev.map((r, i) => (i === currentIndex ? formData : r)));
       setModal("none");
       setCurrentIndex(null);
@@ -654,7 +712,6 @@ export default function MainContent({ section, venTab: venTabProp, onVenTabChang
         return;
       }
 
-      // demo
       setBaseRows((prev) => prev.filter((_, i) => i !== currentIndex));
       setModal("none");
       setCurrentIndex(null);
@@ -728,7 +785,6 @@ export default function MainContent({ section, venTab: venTabProp, onVenTabChang
         columns={columns}
         rows={displayRows}
         resourceKey={active.key}
-        // ✅ Lista de ventas: SOLO ver (sin editar/borrar desde aquí)
         onEdit={isReadOnly || !canWrite || active.key === "lista_ventas" ? undefined : openEdit}
         onDelete={isReadOnly || !canDelete || active.key === "lista_ventas" ? undefined : openConfirmDelete}
         getCellClassName={getCellClassName}
@@ -736,6 +792,7 @@ export default function MainContent({ section, venTab: venTabProp, onVenTabChang
 
       {!isReadOnly && (
         <>
+          {/* CREATE */}
           <Modal
             open={modal === "create"}
             title={active.key === "ventas" ? "Crear venta" : `Crear en ${section}`}
@@ -784,7 +841,10 @@ export default function MainContent({ section, venTab: venTabProp, onVenTabChang
                     <button
                       className="md-btn"
                       type="button"
-                      onClick={() => setVentaItems((prev) => [...prev, { ...EMPTY_ITEM }])}
+                      onClick={() => {
+                        setVentaItems((prev) => [...prev, { ...EMPTY_ITEM }]);
+                        // ventaBarcodes se ajusta solo por el effect
+                      }}
                     >
                       + Agregar item
                     </button>
@@ -803,7 +863,9 @@ export default function MainContent({ section, venTab: venTabProp, onVenTabChang
                               className="md-input"
                               value={it.id}
                               onChange={(e) =>
-                                setVentaItems((prev) => prev.map((p, i) => (i === idx ? { ...p, id: e.target.value } : p)))
+                                setVentaItems((prev) =>
+                                  prev.map((p, i) => (i === idx ? { ...p, id: e.target.value } : p))
+                                )
                               }
                             >
                               <option value="">-- Selecciona --</option>
@@ -816,9 +878,30 @@ export default function MainContent({ section, venTab: venTabProp, onVenTabChang
                           </label>
 
                           <label style={{ display: "grid", gap: 6 }}>
+                            <span style={{ fontSize: 12, opacity: 0.85 }}>Código barras</span>
+                            <input
+                              className="md-input"
+                              id={`venta-barcode-${idx}`}
+                              inputMode="numeric"
+                              placeholder="Escanea y presiona Enter"
+                              value={ventaBarcodes[idx] ?? ""}
+                              onChange={(e) =>
+                                setVentaBarcodes((prev) => prev.map((v, i) => (i === idx ? e.target.value : v)))
+                              }
+                              onKeyDown={(e) => {
+                                if (e.key === "Enter") {
+                                  e.preventDefault();
+                                  applyBarcodeToItem(idx);
+                                }
+                              }}
+                            />
+                          </label>
+
+                          <label style={{ display: "grid", gap: 6 }}>
                             <span style={{ fontSize: 12, opacity: 0.85 }}>Cantidad</span>
                             <input
                               className="md-input"
+                              id={`venta-cant-${idx}`}
                               type="number"
                               min={0.01}
                               step={0.01}
@@ -844,7 +927,10 @@ export default function MainContent({ section, venTab: venTabProp, onVenTabChang
                           <button
                             className="md-btn danger"
                             type="button"
-                            onClick={() => setVentaItems((prev) => prev.filter((_, i) => i !== idx))}
+                            onClick={() => {
+                              setVentaItems((prev) => prev.filter((_, i) => i !== idx));
+                              setVentaBarcodes((prev) => prev.filter((_, i) => i !== idx));
+                            }}
                             title="Eliminar item"
                             disabled={ventaItems.length === 1}
                           >
@@ -876,6 +962,7 @@ export default function MainContent({ section, venTab: venTabProp, onVenTabChang
             )}
           </Modal>
 
+          {/* EDIT */}
           <Modal
             open={modal === "edit"}
             title={active.key === "ventas" ? "Editar venta" : `Editar ${section}`}
@@ -921,11 +1008,7 @@ export default function MainContent({ section, venTab: venTabProp, onVenTabChang
                 <div className="venta-items">
                   <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: 10 }}>
                     <strong>Items vendidos</strong>
-                    <button
-                      className="md-btn"
-                      type="button"
-                      onClick={() => setVentaItems((prev) => [...prev, { ...EMPTY_ITEM }])}
-                    >
+                    <button className="md-btn" type="button" onClick={() => setVentaItems((prev) => [...prev, { ...EMPTY_ITEM }])}>
                       + Agregar item
                     </button>
                   </div>
@@ -943,7 +1026,9 @@ export default function MainContent({ section, venTab: venTabProp, onVenTabChang
                               className="md-input"
                               value={it.id}
                               onChange={(e) =>
-                                setVentaItems((prev) => prev.map((p, i) => (i === idx ? { ...p, id: e.target.value } : p)))
+                                setVentaItems((prev) =>
+                                  prev.map((p, i) => (i === idx ? { ...p, id: e.target.value } : p))
+                                )
                               }
                             >
                               <option value="">-- Selecciona --</option>
@@ -956,9 +1041,30 @@ export default function MainContent({ section, venTab: venTabProp, onVenTabChang
                           </label>
 
                           <label style={{ display: "grid", gap: 6 }}>
+                            <span style={{ fontSize: 12, opacity: 0.85 }}>Código barras</span>
+                            <input
+                              className="md-input"
+                              id={`venta-barcode-${idx}`}
+                              inputMode="numeric"
+                              placeholder="Escanea y presiona Enter"
+                              value={ventaBarcodes[idx] ?? ""}
+                              onChange={(e) =>
+                                setVentaBarcodes((prev) => prev.map((v, i) => (i === idx ? e.target.value : v)))
+                              }
+                              onKeyDown={(e) => {
+                                if (e.key === "Enter") {
+                                  e.preventDefault();
+                                  applyBarcodeToItem(idx);
+                                }
+                              }}
+                            />
+                          </label>
+
+                          <label style={{ display: "grid", gap: 6 }}>
                             <span style={{ fontSize: 12, opacity: 0.85 }}>Cantidad</span>
                             <input
                               className="md-input"
+                              id={`venta-cant-${idx}`}
                               type="number"
                               min={0.01}
                               step={0.01}
@@ -984,7 +1090,10 @@ export default function MainContent({ section, venTab: venTabProp, onVenTabChang
                           <button
                             className="md-btn danger"
                             type="button"
-                            onClick={() => setVentaItems((prev) => prev.filter((_, i) => i !== idx))}
+                            onClick={() => {
+                              setVentaItems((prev) => prev.filter((_, i) => i !== idx));
+                              setVentaBarcodes((prev) => prev.filter((_, i) => i !== idx));
+                            }}
                             title="Eliminar item"
                             disabled={ventaItems.length === 1}
                           >
@@ -1016,6 +1125,7 @@ export default function MainContent({ section, venTab: venTabProp, onVenTabChang
             )}
           </Modal>
 
+          {/* CONFIRM DELETE */}
           <Modal
             open={modal === "confirm"}
             title="Confirmar eliminación"
@@ -1051,6 +1161,7 @@ export default function MainContent({ section, venTab: venTabProp, onVenTabChang
         />
       )}
 
+      {/* NOTIFY */}
       <Modal
         open={modal === "notify"}
         title="Notificación"
