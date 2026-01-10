@@ -7,6 +7,11 @@ import { AppDataSource } from "./database/dbORM";
 import { seedAdmin } from "./seed/seed_admin";
 import { authRouter } from "./routes/auth.routes";
 import { usuariosRouter } from "./routes/usuarios.routes";
+import { ventasRouter } from "./routes/venta_routes";
+import { registroVentaRouter } from "./routes/registro_venta_routes";
+
+
+
 
 const app = express();
 app.use(cors());
@@ -24,6 +29,9 @@ AppDataSource.initialize()
     app.use("/productos", productosRouter);
     app.use("/api/auth", authRouter);
     app.use("/api/usuarios", usuariosRouter);
+    app.use("/api/ventas", ventasRouter);
+    app.use("/api/registro-venta", registroVentaRouter);
+    
 
     app.listen(PORT, () => console.log(`✅ http://localhost:${PORT}`));
   })
