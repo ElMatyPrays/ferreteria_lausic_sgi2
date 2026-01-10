@@ -1,0 +1,10 @@
+MODO CASCADA PARA QUE AL BORRAR VENTA SE ELIMINE LISTA VENTAS
+
+
+ALTER TABLE registro_venta DROP FOREIGN KEY registro_venta_ibfk_1;
+
+ALTER TABLE registro_venta
+  ADD CONSTRAINT registro_venta_ibfk_1
+  FOREIGN KEY (ID_venta) REFERENCES venta(ID_venta)
+  ON DELETE CASCADE
+  ON UPDATE CASCADE;
