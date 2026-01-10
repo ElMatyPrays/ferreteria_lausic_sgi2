@@ -22,11 +22,15 @@ import { getStockClass } from "../../utils/stockColor";
 import { useStockConfig, type StockSectionKey } from "../../hooks/useStockConfig";
 import StockColorConfigModal from "../modals/StockColorConfigModal";
 
-import { fetchListaVentas, type ListaVentaDTO } from "../../services/listaVentasApi";
+import {
+  fetchListaVentas,
+  createListaVenta as apiCreateListaVenta,
+  updateListaVenta as apiUpdateListaVenta,
+  deleteListaVenta as apiDeleteListaVenta,
+  type RegistroVentaDTO,
+} from "../../services/listaVentasApi";
 
 import { FiSettings, FiRefreshCw, FiPlus } from "react-icons/fi";
-
-
 
 /* =========================
    Columnas base (sin tabs)
@@ -60,11 +64,7 @@ const demoRowsBySection: Record<Section, Row[]> = {
   Ventas: [],
 };
 
-type ResourceKey =
-  | "productos"
-  | "ventas"
-  | "lista_ventas"
-  | "demo";
+type ResourceKey = "productos" | "ventas" | "lista_ventas" | "demo";
 
 interface CrudConfig {
   key: ResourceKey;
@@ -101,31 +101,24 @@ function ErrorBanner({ msg }: { msg: string | null }) {
 
 interface MainContentProps {
   section: Section;
-
   venTab?: VentasSub;
   onVenTabChange?: (t: VentasSub) => void;
 }
 
 type ModalKind = "none" | "create" | "edit" | "confirm" | "notify";
 
-export default function MainContent({
-  section,
-  venTab: venTabProp,
-  onVenTabChange,
-}: MainContentProps) {
+export default function MainContent({ section, venTab: venTabProp, onVenTabChange }: MainContentProps) {
   const user = getUser();
   const role = user?.rol ?? "LECTOR";
   console.log("ROLE:", role, "USER:", user);
-
 
   const isAdmin = role === "ADMIN";
   const isOperador = role === "OPERADOR";
   const isReader = role === "LECTOR";
 
-  // Si quieres: permisos por acción
+  // permisos
   const canWrite = isAdmin || isOperador; // crear/editar
-  const canDelete = isAdmin;              // eliminar solo admin (recomendado)
-
+  const canDelete = isAdmin; // eliminar solo admin
 
   const [venTabState, setVenTabState] = useState<VentasSub>("Ventas");
   const venTab = venTabProp ?? venTabState;
@@ -144,8 +137,7 @@ export default function MainContent({
 
   // Productos (también para Lista de ventas y Ventas)
   const productosEnabled =
-    section === "Productos" ||
-    (section === "Ventas" && (venTab === "Lista de ventas" || venTab === "Ventas"));
+    section === "Productos" || (section === "Ventas" && (venTab === "Lista de ventas" || venTab === "Ventas"));
 
   const {
     data: productosRows,
@@ -167,7 +159,6 @@ export default function MainContent({
     reload: reloadVentas,
     create: createVenta,
     createWithItems: createVentaWithItems,
-    updateWithItems: updateVentaWithItems,
     update: updateVenta,
     remove: removeVenta,
   } = useVentas(ventasEnabled);
@@ -179,6 +170,8 @@ export default function MainContent({
     loading: listaVentasLoading,
     error: listaVentasError,
     reload: reloadListaVentas,
+    create: createListaVenta,
+    update: updateListaVenta,
     remove: removeListaVenta,
   } = useListaVentas(listaVentasEnabled);
 
@@ -240,24 +233,18 @@ export default function MainContent({
       cols.forEach((c) => (empty[c.key] = ""));
       empty.total = 0;
       empty.fecha = new Date().toISOString().slice(0, 10);
-      empty.estado = "false";
+      empty.estado_pago = "false";
       return empty;
     },
     buildCreatePayload: (form) => ({
       total: Number(form.total || 0),
       fecha: form.fecha ? String(form.fecha) : undefined,
-      estado: form.estado === true || form.estado === "true" || form.estado === "1",
+      estado_pago: form.estado_pago === true || form.estado_pago === "true" || form.estado_pago === "1",
     }),
     buildUpdatePayload: (form, row) => ({
       total: Number(form.total ?? row.total ?? 0),
       fecha: form.fecha ? String(form.fecha) : String(row.fecha || ""),
-      estado:
-        form.estado === true ||
-        form.estado === "true" ||
-        form.estado === "1" ||
-        row.estado === true ||
-        row.estado === "true" ||
-        row.estado === "1",
+      estado_pago: form.estado_pago === true || form.estado_pago === "true" || form.estado_pago === "1",
     }),
     create: createVenta,
     update: updateVenta,
@@ -267,43 +254,58 @@ export default function MainContent({
   const listaVentasConfig: CrudConfig = {
     key: "lista_ventas",
     enabled: listaVentasEnabled,
-    idKey: "ID_lista_venta",
+    idKey: "ID_registro_venta",
     rows: listaVentasRows,
     loading: listaVentasLoading,
     error: listaVentasError,
+    create: async (payload) => {
+      const out = await createListaVenta(payload);
+      await reloadListaVentas?.();
+      await reloadVentas?.();
+      await reloadProductos?.();
+      return out;
+    },
+    update: async (id, payload) => {
+      const out = await updateListaVenta(id, payload);
+      await reloadListaVentas?.();
+      await reloadVentas?.();
+      await reloadProductos?.();
+      return out;
+    },
+    remove: async (id) => {
+      const out = await removeListaVenta(id);
+      await reloadListaVentas?.();
+      await reloadVentas?.();
+      await reloadProductos?.();
+      return out;
+    },
     reload: reloadListaVentas,
     buildEmptyForm: (cols) => {
       const empty: Row = {};
       cols.forEach((c) => (empty[c.key] = ""));
       empty.ID_venta = "";
       empty.ID_producto = "";
-      empty.cantidad = 0;
-      empty.subtotal = 0;
+      empty.cantidad = 1;
       return empty;
     },
     buildCreatePayload: (form) => {
       const payload = {
         ID_venta: Number(form.ID_venta),
-        ID_producto: form.ID_producto === "" || form.ID_producto == null ? null : Number(form.ID_producto),
+        ID_producto: Number(form.ID_producto),
         cantidad: Number(form.cantidad),
-        subtotal: Number(form.subtotal),
       };
 
       if (!payload.ID_venta) throw new Error("Debes ingresar un ID_venta válido.");
-      const hasProducto = Number.isInteger(payload.ID_producto as any) && (payload.ID_producto as any) > 0;
-      if (!hasProducto) throw new Error("Debes seleccionar un producto.");
+      if (!payload.ID_producto) throw new Error("Debes seleccionar un producto.");
       if (!payload.cantidad || payload.cantidad <= 0) throw new Error("La cantidad debe ser mayor que 0.");
-      if (!payload.subtotal || payload.subtotal <= 0) throw new Error("El subtotal debe ser mayor que 0.");
 
       return payload;
     },
-    buildUpdatePayload: (form) => ({
-      ID_venta: Number(form.ID_venta || 0),
-      ID_producto: Number(form.ID_producto || 0),
-      cantidad: Number(form.cantidad || 0),
-      subtotal: Number(form.subtotal || 0),
-    }),
-    remove: removeListaVenta,
+    buildUpdatePayload: (form) => {
+      const payload: any = {};
+      if (form.cantidad != null && String(form.cantidad) !== "") payload.cantidad = Number(form.cantidad);
+      return payload;
+    },
   };
 
   const demoEnabled = !productosEnabled && !ventasEnabled && !listaVentasEnabled;
@@ -327,13 +329,15 @@ export default function MainContent({
     active = configs.find((c) => c.enabled) ?? demoConfig;
   }
 
+  const isListaVentas = active.key === "lista_ventas";
+  const readOnlyKeysListaVentas = ["ID_registro_venta", "ID_venta", "ID_producto", "subtotal"];
+
   const { config: stockCfg, setSection: setStockSection, resetSection: resetStockSection, labels: stockLabels } =
     useStockConfig();
 
   const [stockCfgOpen, setStockCfgOpen] = useState(false);
 
-  const stockSectionKey: StockSectionKey | null =
-    active.key === "productos" ? ("productos" as StockSectionKey) : null;
+  const stockSectionKey: StockSectionKey | null = active.key === "productos" ? ("productos" as StockSectionKey) : null;
 
   const getCellClassName = (col: Column, row: Row) => {
     if (active.key === "productos" && col.key === "stock") {
@@ -356,17 +360,23 @@ export default function MainContent({
   const [currentIndex, setCurrentIndex] = useState<number | null>(null);
   const [formData, setFormData] = useState<Row>({});
   const [notifyMsg, setNotifyMsg] = useState<string>("");
-  
 
   // =========================
   // Ventas: SOLO productos
   // =========================
   type VentaItemUI = {
     tipo: "producto";
+    registroId?: number; // ID_registro_venta (cuando editas una venta existente)
     id: string; // ID_producto
-    cantidad: string; // permite decimales
+    cantidad: string;
   };
+
+  // ✅ FIX TS: item base tipado (tipo literal "producto")
+  const EMPTY_ITEM: VentaItemUI = { tipo: "producto", id: "", cantidad: "1" };
+
   const [ventaItems, setVentaItems] = useState<VentaItemUI[]>([]);
+  const [ventaItemsOriginal, setVentaItemsOriginal] = useState<VentaItemUI[]>([]);
+
   const round2 = (n: number) => Math.round(n * 100) / 100;
 
   const getUnitPrice = (id: string) => {
@@ -383,19 +393,20 @@ export default function MainContent({
     return round2(qty * price);
   };
 
-  const ventaTotal = useMemo(() => round2(ventaItems.reduce((acc, it) => acc + getSubtotal(it), 0)), [
-    ventaItems,
-    productosRows,
-  ]);
+  const ventaTotal = useMemo(
+    () => round2(ventaItems.reduce((acc, it) => acc + getSubtotal(it), 0)),
+    [ventaItems, productosRows]
+  );
 
   const closeModal = () => setModal("none");
 
   const openCreate = () => {
     if (active.key === "ventas") {
-      setVentaItems([{ tipo: "producto", id: "", cantidad: "1" }]);
+      setVentaItems([EMPTY_ITEM]);
+      setVentaItemsOriginal([]);
       setFormData({
         fecha: new Date().toISOString().slice(0, 10),
-        estado: "false",
+        estado_pago: "false",
       });
       setModal("create");
       return;
@@ -422,20 +433,24 @@ export default function MainContent({
         const idVenta = Number((row as any).ID_venta);
         if (!Number.isInteger(idVenta) || idVenta <= 0) throw new Error("ID_venta inválido");
 
-        const items: ListaVentaDTO[] = await fetchListaVentas({ ID_venta: idVenta });
+        const items: RegistroVentaDTO[] = await fetchListaVentas({ ID_venta: idVenta });
 
         const mapped: VentaItemUI[] = items
           .filter((it) => Number((it as any).ID_producto) && Number((it as any).ID_producto) > 0)
           .map((it) => ({
-            tipo: "producto",
+            tipo: "producto" as const,
+            registroId: Number((it as any).ID_registro_venta),
             id: String((it as any).ID_producto),
-            cantidad: String(it.cantidad ?? 1),
+            cantidad: String((it as any).cantidad ?? 1),
           }));
 
-        setVentaItems(mapped.length ? mapped : [{ tipo: "producto", id: "", cantidad: "1" }]);
+        const initial: VentaItemUI[] = mapped.length ? mapped : [{ ...EMPTY_ITEM }];
+        setVentaItems(initial);
+        setVentaItemsOriginal(initial);
+
         setFormData({
           fecha: String((row as any).fecha || "").slice(0, 10),
-          estado: String((row as any).estado ?? "false"),
+          estado_pago: String((row as any).estado_pago ?? "false"),
         });
 
         setModal("edit");
@@ -449,7 +464,7 @@ export default function MainContent({
       }
     }
 
-    setFormData({ ...row });
+    setFormData({ ...(row as any) });
     setModal("edit");
   };
 
@@ -472,7 +487,7 @@ export default function MainContent({
 
         await createVentaWithItems({
           fecha: formData.fecha ? String(formData.fecha) : undefined,
-          estado: formData.estado === true || formData.estado === "true" || formData.estado === "1",
+          estado_pago: formData.estado_pago === true || formData.estado_pago === "true" || formData.estado_pago === "1",
           items,
         });
 
@@ -505,6 +520,7 @@ export default function MainContent({
     }
   };
 
+  // ✅ EDIT: sincroniza items de venta (registro_venta)
   const submitEdit = async () => {
     if (currentIndex == null) return;
     const row = active.rows[currentIndex] as any;
@@ -514,20 +530,77 @@ export default function MainContent({
         const idVenta = Number(row.ID_venta);
         if (!Number.isInteger(idVenta) || idVenta <= 0) throw new Error("ID_venta inválido");
 
-        const items = ventaItems.map((it, idx) => {
+        // 1) Validar items actuales del modal
+        const currentItems = ventaItems.map((it, idx) => {
           const cantidad = Number(it.cantidad);
-          const id = Number(it.id);
+          const idProd = Number(it.id);
+
           if (!it.id) throw new Error(`Item #${idx + 1}: selecciona un producto`);
           if (!Number.isFinite(cantidad) || cantidad <= 0) throw new Error(`Item #${idx + 1}: cantidad inválida`);
-          if (!Number.isInteger(id) || id <= 0) throw new Error(`Item #${idx + 1}: producto inválido`);
-          return { tipo: "producto" as const, ID_producto: id, cantidad };
+          if (!Number.isInteger(idProd) || idProd <= 0) throw new Error(`Item #${idx + 1}: producto inválido`);
+
+          return {
+            registroId: it.registroId,
+            ID_producto: idProd,
+            cantidad,
+          };
         });
 
-        await updateVentaWithItems(idVenta, {
+        // 2) Actualizar cabecera de venta (incluye total)
+        await updateVenta(idVenta, {
+          total: ventaTotal,
           fecha: formData.fecha ? String(formData.fecha) : undefined,
-          estado: formData.estado === true || formData.estado === "true" || formData.estado === "1",
-          items,
+          estado_pago: formData.estado_pago === true || formData.estado_pago === "true" || formData.estado_pago === "1",
         });
+
+        // 3) Sincronizar registro_venta (delete/update/create)
+        const prev = (ventaItemsOriginal ?? []).filter((x) => x.registroId != null);
+
+        const prevByReg = new Map<number, VentaItemUI>();
+        prev.forEach((p) => prevByReg.set(Number(p.registroId), p));
+
+        const currentByReg = new Map<number, { ID_producto: number; cantidad: number }>();
+        currentItems.forEach((c) => {
+          if (c.registroId != null) currentByReg.set(Number(c.registroId), c);
+        });
+
+        // a) eliminados
+        for (const [regId] of prevByReg.entries()) {
+          if (!currentByReg.has(regId)) {
+            await apiDeleteListaVenta(regId);
+          }
+        }
+
+        // b) updates / cambio de producto
+        for (const [regId, cur] of currentByReg.entries()) {
+          const old = prevByReg.get(regId);
+          if (!old) continue;
+
+          const oldProd = Number(old.id);
+          const oldQty = Number(old.cantidad);
+
+          // si cambió producto: borrar viejo y crear nuevo
+          if (oldProd !== cur.ID_producto) {
+            await apiDeleteListaVenta(regId);
+            await apiCreateListaVenta({ ID_venta: idVenta, ID_producto: cur.ID_producto, cantidad: cur.cantidad });
+            continue;
+          }
+
+          // si cambió cantidad
+          if (oldQty !== cur.cantidad) {
+            await apiUpdateListaVenta(regId, { cantidad: cur.cantidad });
+          }
+        }
+
+        // c) nuevos
+        for (const cur of currentItems) {
+          if (cur.registroId != null) continue;
+          await apiCreateListaVenta({ ID_venta: idVenta, ID_producto: cur.ID_producto, cantidad: cur.cantidad });
+        }
+
+        // 4) refrescar para stock y tablas
+        await reloadVentas?.();
+        await reloadProductos?.();
 
         setModal("none");
         setCurrentIndex(null);
@@ -536,6 +609,7 @@ export default function MainContent({
         return;
       }
 
+      // CRUD normal
       if (active.update && active.buildUpdatePayload && active.idKey) {
         const id = Number(row[active.idKey]);
         if (!id) throw new Error(`${active.idKey} inválido`);
@@ -562,8 +636,6 @@ export default function MainContent({
       setModal("notify");
     }
   };
-
-  
 
   const confirmDelete = async () => {
     if (currentIndex == null) return;
@@ -606,11 +678,7 @@ export default function MainContent({
         {stockSectionKey && (
           <button
             className="mc-btn"
-            title={
-              isReader
-                ? "Solo usuarios con permisos pueden cambiar la configuración"
-                : "Configurar colores de stock"
-            }
+            title={isReader ? "Solo usuarios con permisos pueden cambiar la configuración" : "Configurar colores de stock"}
             onClick={() => setStockCfgOpen(true)}
             disabled={!isAdmin}
           >
@@ -633,7 +701,6 @@ export default function MainContent({
           </button>
         )}
 
-
         {active.loading && <span style={{ fontSize: 12, opacity: 0.8 }}>Cargando…</span>}
       </div>
     );
@@ -645,7 +712,6 @@ export default function MainContent({
       </button>
     ) : null;
   }
-
 
   return (
     <section className="mc-root" aria-label={`Tabla de ${section}`}>
@@ -662,12 +728,11 @@ export default function MainContent({
         columns={columns}
         rows={displayRows}
         resourceKey={active.key}
+        // ✅ Lista de ventas: SOLO ver (sin editar/borrar desde aquí)
         onEdit={isReadOnly || !canWrite || active.key === "lista_ventas" ? undefined : openEdit}
-        onDelete={isReadOnly || !canDelete ? undefined : openConfirmDelete}
+        onDelete={isReadOnly || !canDelete || active.key === "lista_ventas" ? undefined : openConfirmDelete}
         getCellClassName={getCellClassName}
       />
-
-      
 
       {!isReadOnly && (
         <>
@@ -678,8 +743,12 @@ export default function MainContent({
             className={active.key === "ventas" ? "mc-card-lg" : ""}
             actions={
               <>
-                <button className="md-btn" onClick={closeModal}>Cancelar</button>
-                <button className="md-btn primary" onClick={submitCreate}>Guardar</button>
+                <button className="md-btn" onClick={closeModal}>
+                  Cancelar
+                </button>
+                <button className="md-btn primary" onClick={submitCreate}>
+                  Guardar
+                </button>
               </>
             }
           >
@@ -700,8 +769,8 @@ export default function MainContent({
                     <span style={{ fontSize: 12, opacity: 0.85 }}>Estado</span>
                     <select
                       className="md-input"
-                      value={String(formData.estado || "false")}
-                      onChange={(e) => onChangeField("estado", e.target.value)}
+                      value={String(formData.estado_pago || "false")}
+                      onChange={(e) => onChangeField("estado_pago", e.target.value)}
                     >
                       <option value="false">Pendiente</option>
                       <option value="true">Pagada</option>
@@ -715,7 +784,7 @@ export default function MainContent({
                     <button
                       className="md-btn"
                       type="button"
-                      onClick={() => setVentaItems((prev) => [...prev, { tipo: "producto", id: "", cantidad: "1" }])}
+                      onClick={() => setVentaItems((prev) => [...prev, { ...EMPTY_ITEM }])}
                     >
                       + Agregar item
                     </button>
@@ -755,7 +824,9 @@ export default function MainContent({
                               step={0.01}
                               value={it.cantidad}
                               onChange={(e) =>
-                                setVentaItems((prev) => prev.map((p, i) => (i === idx ? { ...p, cantidad: e.target.value } : p)))
+                                setVentaItems((prev) =>
+                                  prev.map((p, i) => (i === idx ? { ...p, cantidad: e.target.value } : p))
+                                )
                               }
                             />
                           </label>
@@ -797,7 +868,7 @@ export default function MainContent({
                 columns={columns}
                 formData={formData}
                 onChange={onChangeField}
-                excludeKeys={idKey ? [idKey] : []}
+                excludeKeys={active.key === "lista_ventas" ? ["ID_registro_venta", "subtotal"] : undefined}
                 readOnlyKeys={readOnlyKeysCreate}
                 ventasOptions={active.key === "lista_ventas" ? ventasRows : undefined}
                 productosOptions={active.key === "lista_ventas" ? productosRows : undefined}
@@ -812,13 +883,16 @@ export default function MainContent({
             className={active.key === "ventas" ? "mc-card-lg" : ""}
             actions={
               <>
-                <button className="md-btn" onClick={closeModal}>Cancelar</button>
-                <button className="md-btn primary" onClick={submitEdit}>Guardar</button>
+                <button className="md-btn" onClick={closeModal}>
+                  Cancelar
+                </button>
+                <button className="md-btn primary" onClick={submitEdit}>
+                  Guardar
+                </button>
               </>
             }
           >
             {active.key === "ventas" ? (
-              // Reutilizo el mismo UI del create (sin Tipo)
               <div className="venta-modal">
                 <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 12 }}>
                   <label style={{ display: "grid", gap: 6 }}>
@@ -835,8 +909,8 @@ export default function MainContent({
                     <span style={{ fontSize: 12, opacity: 0.85 }}>Estado</span>
                     <select
                       className="md-input"
-                      value={String(formData.estado || "false")}
-                      onChange={(e) => onChangeField("estado", e.target.value)}
+                      value={String(formData.estado_pago || "false")}
+                      onChange={(e) => onChangeField("estado_pago", e.target.value)}
                     >
                       <option value="false">Pendiente</option>
                       <option value="true">Pagada</option>
@@ -850,7 +924,7 @@ export default function MainContent({
                     <button
                       className="md-btn"
                       type="button"
-                      onClick={() => setVentaItems((prev) => [...prev, { tipo: "producto", id: "", cantidad: "1" }])}
+                      onClick={() => setVentaItems((prev) => [...prev, { ...EMPTY_ITEM }])}
                     >
                       + Agregar item
                     </button>
@@ -890,7 +964,9 @@ export default function MainContent({
                               step={0.01}
                               value={it.cantidad}
                               onChange={(e) =>
-                                setVentaItems((prev) => prev.map((p, i) => (i === idx ? { ...p, cantidad: e.target.value } : p)))
+                                setVentaItems((prev) =>
+                                  prev.map((p, i) => (i === idx ? { ...p, cantidad: e.target.value } : p))
+                                )
                               }
                             />
                           </label>
@@ -932,9 +1008,10 @@ export default function MainContent({
                 columns={columns}
                 formData={formData}
                 onChange={onChangeField}
-                readOnlyKeys={readOnlyKeysEdit}
-                ventasOptions={active.key === "lista_ventas" ? ventasRows : undefined}
-                productosOptions={active.key === "lista_ventas" ? productosRows : undefined}
+                excludeKeys={isListaVentas ? ["subtotal"] : undefined}
+                readOnlyKeys={isListaVentas ? readOnlyKeysListaVentas : readOnlyKeysEdit}
+                ventasOptions={isListaVentas ? ventasRows : undefined}
+                productosOptions={isListaVentas ? productosRows : undefined}
               />
             )}
           </Modal>
@@ -945,8 +1022,12 @@ export default function MainContent({
             onClose={closeModal}
             actions={
               <>
-                <button className="md-btn" onClick={closeModal}>Cancelar</button>
-                <button className="md-btn danger" onClick={confirmDelete}>Eliminar</button>
+                <button className="md-btn" onClick={closeModal}>
+                  Cancelar
+                </button>
+                <button className="md-btn danger" onClick={confirmDelete}>
+                  Eliminar
+                </button>
               </>
             }
           >

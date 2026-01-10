@@ -180,3 +180,31 @@
   background: #ef444420;
   border-color: #ef444450;
 }
+
+
+
+
+
+/* Pills para estado pago */
+.dt-pill {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  padding: 4px 10px;
+  border-radius: 999px;
+  font-weight: 700;
+  font-size: 12px;
+  border: 1px solid transparent;
+}
+
+.dt-pill-ok {
+  background: rgba(34, 197, 94, 0.18);
+  border-color: rgba(34, 197, 94, 0.35);
+  color: #22c55e;
+}
+
+.dt-pill-bad {
+  background: rgba(239, 68, 68, 0.18);
+  border-color: rgba(239, 68, 68, 0.35);
+  color: #ef4444;
+}

@@ -71,6 +71,7 @@ exports.ventasRouter.put("/:id", async (req, res) => {
     }
 });
 // DELETE
+// DELETE
 exports.ventasRouter.delete("/:id", async (req, res) => {
     try {
         const id = Number(req.params.id);
@@ -78,7 +79,13 @@ exports.ventasRouter.delete("/:id", async (req, res) => {
         res.json(out);
     }
     catch (e) {
-        res.status(400).json({ message: e?.message ?? "Error al eliminar venta" });
+        const msg = e?.message ?? "Error al eliminar venta";
+        // ✅ si está pagada => conflicto
+        if (msg.toLowerCase().includes("venta pagada")) {
+            return res.status(409).json({ message: msg });
+        }
+        // ✅ id inválido / venta no encontrada / validaciones
+        return res.status(400).json({ message: msg });
     }
 });
 //# sourceMappingURL=venta_routes.js.map

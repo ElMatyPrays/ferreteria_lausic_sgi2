@@ -11,6 +11,21 @@ import type {
 } from "../DTO/ventaDTO";
 
 export class VentasService {
+
+  private async recalcTotalFromItems(idVenta: number) {
+  const regRepo = AppDataSource.getRepository(Registro_ventaEntity);
+
+  // suma de subtotales de la venta
+  const row = await regRepo
+    .createQueryBuilder("rv")
+    .select("COALESCE(SUM(rv.subtotal), 0)", "total")
+    .where("rv.ID_venta = :id", { id: idVenta })
+    .getRawOne<{ total: string }>();
+
+  return Number(row?.total ?? 0);
+}
+
+
   private repo() {
     return AppDataSource.getRepository(VentaEntity);
   }
@@ -74,26 +89,46 @@ export class VentasService {
   }
 
   async update(id: number, dto: UpdateVentaDTO) {
-    const venta = await this.findById(id, false);
+  const venta = await this.findById(id, false);
 
+  // ✅ si tiene items, el total lo manda el backend
+  const tieneItems = await AppDataSource.getRepository(Registro_ventaEntity).exist({
+    where: { ID_venta: id } as any,
+  });
+
+  // fecha / estado_pago siempre permitidos
+  if (dto.fecha != null) venta.fecha = new Date(dto.fecha);
+  if (dto.estado_pago != null) venta.estado_pago = Boolean(dto.estado_pago);
+
+  if (tieneItems) {
+    // 🚫 ignorar total del front y recalcular
+    venta.total = await this.recalcTotalFromItems(id);
+  } else {
+    // ✅ si NO tiene items, se permite total manual
     if (dto.total != null) {
       const t = Number(dto.total);
       if (Number.isNaN(t)) throw new Error("total inválido");
       if (t < 0) throw new Error("total no puede ser negativo");
       venta.total = t;
     }
-
-    if (dto.fecha != null) venta.fecha = new Date(dto.fecha);
-    if (dto.estado_pago != null) venta.estado_pago = Boolean(dto.estado_pago);
-
-    return await this.repo().save(venta);
   }
+
+  return await this.repo().save(venta);
+}
+
 
   async remove(id: number) {
-    const venta = await this.findById(id, false);
-    await this.repo().remove(venta); // CASCADE borra registros
-    return { ok: true };
+  const venta = await this.findById(id, false);
+
+  // 🚫 regla de negocio: no permitir borrar pagadas
+  if (venta.estado_pago === true) {
+    throw new Error("No se puede eliminar una venta pagada");
   }
+
+  await this.repo().remove(venta); // CASCADE borra registros
+  return { ok: true };
+}
+
 
   /**
    * ✅ Crea una venta y sus items, y DESCUNTA STOCK.

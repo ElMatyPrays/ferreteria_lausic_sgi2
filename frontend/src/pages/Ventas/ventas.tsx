@@ -8,6 +8,7 @@ import type { VentasSub } from "../../components/main/secciones/ventas/ventas.co
 function Ventas() {
 
   const [venTab, setVenTab] = useState<VentasSub>("Ventas");
+  
 
   
   return (

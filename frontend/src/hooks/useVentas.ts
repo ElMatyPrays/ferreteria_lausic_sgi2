@@ -1,23 +1,25 @@
 // src/hooks/useVentas.ts
-import { useCallback, useEffect, useState } from "react";
+import { useCallback, useEffect, useMemo, useState } from "react";
 import type { Row } from "../components/main/types";
 import {
   fetchVentas,
   createVenta,
   createVentaWithItems,
-  updateVentaWithItems,
   updateVenta,
   deleteVenta,
   type VentaDTO,
   type VentaInput,
   type VentaWithItemsInput,
-  type VentaFilters,   // 👈 importar filtros
+  type VentaFilters,
 } from "../services/ventasApi";
 
 export function useVentas(enabled: boolean, filters?: VentaFilters) {
   const [data, setData] = useState<Row[]>([]);
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
+
+  // ✅ evita reload infinito si filters viene como objeto nuevo cada render
+  const filtersKey = useMemo(() => JSON.stringify(filters ?? {}), [filters]);
 
   const load = useCallback(async () => {
     if (!enabled) return;
@@ -31,7 +33,7 @@ export function useVentas(enabled: boolean, filters?: VentaFilters) {
         ID_venta: String(v.ID_venta),
         total: String(v.total),
         fecha: v.fecha ? v.fecha.slice(0, 10) : "",
-        estado: v.estado ? "true" : "false",
+        estado_pago: v.estado_pago ? "true" : "false",
       }));
 
       setData(rows);
@@ -41,7 +43,7 @@ export function useVentas(enabled: boolean, filters?: VentaFilters) {
     } finally {
       setLoading(false);
     }
-  }, [enabled, filters]); // 👈 depende de filters
+  }, [enabled, filtersKey]);
 
   // CREATE
   const create = useCallback(
@@ -83,9 +85,9 @@ export function useVentas(enabled: boolean, filters?: VentaFilters) {
     [enabled, load]
   );
 
-  // UPDATE
+  // ✅ UPDATE: parcial
   const update = useCallback(
-    async (id: number, input: VentaInput) => {
+    async (id: number, input: Partial<VentaInput>) => {
       if (!enabled) return;
       setLoading(true);
       setError(null);
@@ -94,26 +96,6 @@ export function useVentas(enabled: boolean, filters?: VentaFilters) {
         await load();
       } catch (err: any) {
         console.error("Error actualizando venta:", err);
-        setError(err?.message || "Error al actualizar venta");
-        throw err;
-      } finally {
-        setLoading(false);
-      }
-    },
-    [enabled, load]
-  );
-
-  // UPDATE (with items)
-  const updateWithItems = useCallback(
-    async (id: number, input: VentaWithItemsInput) => {
-      if (!enabled) return;
-      setLoading(true);
-      setError(null);
-      try {
-        await updateVentaWithItems(id, input);
-        await load();
-      } catch (err: any) {
-        console.error("Error actualizando venta (items):", err);
         setError(err?.message || "Error al actualizar venta");
         throw err;
       } finally {
@@ -155,7 +137,6 @@ export function useVentas(enabled: boolean, filters?: VentaFilters) {
       reload: () => {},
       create: async () => {},
       createWithItems: async () => {},
-      updateWithItems: async () => {},
       update: async () => {},
       remove: async () => {},
     };
@@ -168,7 +149,6 @@ export function useVentas(enabled: boolean, filters?: VentaFilters) {
     reload: load,
     create,
     createWithItems,
-    updateWithItems,
     update,
     remove,
   };

@@ -1,145 +1,77 @@
 // src/services/listaVentasApi.ts
 import { apiFetch } from "./apiFetch";
 
-export type ListaVentaDTO = {
-  ID_lista_venta: number;
-  ID_venta: number;
+/**
+ * ✅ Backend real:
+ *  - GET    /api/registro-venta
+ *  - POST   /api/registro-venta
+ *  - PUT    /api/registro-venta/:id
+ *  - DELETE /api/registro-venta/:id
+ */
+
+export type RegistroVentaDTO = {
+  ID_registro_venta: number;
   ID_producto: number;
-  ID_tela?: number;
   cantidad: number;
   subtotal: number;
+  venta?: { ID_venta: number; total: number; fecha: string; estado_pago: boolean };
+  producto?: { ID_producto: number; nombre: string; codigo_barras: string; precio_venta: number };
 };
 
-export type ListaVentaInput = {
+export type RegistroVentaInput = {
   ID_venta: number;
   ID_producto: number;
-  ID_tela?: number;
   cantidad: number;
-  subtotal: number;
+  subtotal?: number;
 };
 
-// 🔹 campos válidos para ordenar
-export type ListaVentasSortField =
-  | "ID_lista_venta"
-  | "ID_venta"
-  | "cantidad"
-  | "subtotal";
-
-// 🔹 filtros que usaremos desde el front
-export interface ListaVentasFilters {
+export interface RegistroVentaFilters {
   ID_venta?: number;
-  minCantidad?: number;
-  maxCantidad?: number;
-  minSubtotal?: number;
-  maxSubtotal?: number;
-  sortBy?: ListaVentasSortField;
-  sortDir?: "ASC" | "DESC";
-  q?: string;
+  ID_producto?: number;
+  includeProducto?: boolean;
+  includeVenta?: boolean;
 }
 
-function parseListaVentasResponse(json: any): ListaVentaDTO[] {
-  if (Array.isArray(json)) return json as ListaVentaDTO[];
-  if (json?.ok === false)
-    throw new Error(json?.error || "Error al obtener lista_ventas");
-  return (json?.data ?? []) as ListaVentaDTO[];
+const BASE_URL = "/api/registro-venta";
+
+async function readJson(res: Response) {
+  const json = await res.json().catch(() => null);
+  if (!res.ok) {
+    const msg = json?.message || json?.error || "Error en la petición de registro_venta";
+    throw new Error(msg);
+  }
+  return json;
 }
 
-/* =========================
-   READ (con filtros)
-   ========================= */
-export async function fetchListaVentas(
-  filters?: ListaVentasFilters
-): Promise<ListaVentaDTO[]> {
+export async function fetchListaVentas(filters?: RegistroVentaFilters): Promise<RegistroVentaDTO[]> {
   const params = new URLSearchParams();
+  if (filters?.ID_venta != null && !Number.isNaN(filters.ID_venta)) params.set("ID_venta", String(filters.ID_venta));
+  if (filters?.ID_producto != null && !Number.isNaN(filters.ID_producto)) params.set("ID_producto", String(filters.ID_producto));
+  if (filters?.includeProducto) params.set("includeProducto", "true");
+  if (filters?.includeVenta) params.set("includeVenta", "true");
 
-  if (filters) {
-    if (filters.ID_venta != null && !isNaN(filters.ID_venta)) {
-      params.set("ID_venta", String(filters.ID_venta));
-    }
-    if (filters.minCantidad != null) {
-      params.set("minCantidad", String(filters.minCantidad));
-    }
-    if (filters.maxCantidad != null) {
-      params.set("maxCantidad", String(filters.maxCantidad));
-    }
-    if (filters.minSubtotal != null) {
-      params.set("minSubtotal", String(filters.minSubtotal));
-    }
-    if (filters.maxSubtotal != null) {
-      params.set("maxSubtotal", String(filters.maxSubtotal));
-    }
-    if (filters.sortBy) {
-      params.set("sortBy", filters.sortBy);
-    }
-    if (filters.sortDir) {
-      params.set("sortDir", filters.sortDir);
-    }
-    if (filters.q && filters.q.trim() !== "") {
-      params.set("q", filters.q.trim());
-    }
-  }
-
-  const query = params.toString();
-  const url = query ? `/api/lista_ventas?${query}` : "/api/lista_ventas";
-
+  const url = params.toString() ? `${BASE_URL}?${params}` : BASE_URL;
   const res = await apiFetch(url);
-  const json = await res.json().catch(() => null);
-
-  if (!res.ok) throw new Error(json?.error || "Error al obtener lista_ventas");
-  return parseListaVentasResponse(json);
+  return (await readJson(res)) as RegistroVentaDTO[];
 }
 
-/* =========================
-   CREATE
-   ========================= */
-export async function createListaVenta(
-  input: ListaVentaInput
-): Promise<ListaVentaDTO> {
-  const res = await apiFetch("/api/lista_ventas", {
-    method: "POST",
-    body: JSON.stringify(input),
-  });
+export async function createListaVenta(input: RegistroVentaInput): Promise<RegistroVentaDTO> {
+  const clean = { ...input };
+  delete (clean as any).subtotal;
 
-  const json = await res.json().catch(() => null);
-  if (!res.ok || json?.ok === false) {
-    throw new Error(json?.error || "Error al crear lista_venta");
-  }
-  return (json.data ?? json) as ListaVentaDTO;
+  const res = await apiFetch(BASE_URL, { method: "POST", body: JSON.stringify(clean) });
+  return (await readJson(res)) as RegistroVentaDTO;
 }
 
-/* =========================
-   UPDATE
-   ========================= */
-export async function updateListaVenta(
-  id: number,
-  input: ListaVentaInput
-): Promise<ListaVentaDTO> {
-  const res = await apiFetch(`/api/lista_ventas/${id}`, {
-    method: "PUT",
-    body: JSON.stringify(input),
-  });
+export async function updateListaVenta(id: number, input: Partial<RegistroVentaInput>): Promise<RegistroVentaDTO> {
+  const clean = { ...input };
+  delete (clean as any).subtotal;
 
-  const json = await res.json().catch(() => null);
-  if (!res.ok || json?.ok === false) {
-    throw new Error(json?.error || "Error al actualizar lista_venta");
-  }
-  return (json.data ?? json) as ListaVentaDTO;
+  const res = await apiFetch(`${BASE_URL}/${id}`, { method: "PUT", body: JSON.stringify(clean) });
+  return (await readJson(res)) as RegistroVentaDTO;
 }
 
-/* =========================
-   DELETE
-   ========================= */
 export async function deleteListaVenta(id: number): Promise<void> {
-  const res = await apiFetch(`/api/lista_ventas/${id}`, { method: "DELETE" });
-
-  let json: any = null;
-  try {
-    json = await res.json();
-  } catch {
-    // puede no venir body
-  }
-
-  if (!res.ok || json?.ok === false) {
-    throw new Error(json?.error || "Error al eliminar lista_venta");
-  }
+  const res = await apiFetch(`${BASE_URL}/${id}`, { method: "DELETE" });
+  await readJson(res);
 }

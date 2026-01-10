@@ -24,6 +24,10 @@ __decorate([
 __decorate([
     (0, typeorm_1.Column)("int", { nullable: false }),
     __metadata("design:type", Number)
+], Registro_ventaEntity.prototype, "ID_venta", void 0);
+__decorate([
+    (0, typeorm_1.Column)("int", { nullable: false }),
+    __metadata("design:type", Number)
 ], Registro_ventaEntity.prototype, "ID_producto", void 0);
 __decorate([
     (0, typeorm_1.Column)("int", { nullable: false }),
@@ -39,7 +43,7 @@ __decorate([
         onUpdate: "CASCADE",
         nullable: false,
     }),
-    (0, typeorm_1.JoinColumn)({ name: "ID_venta" }),
+    (0, typeorm_1.JoinColumn)({ name: "ID_venta", referencedColumnName: "ID_venta" }),
     __metadata("design:type", ventaEntity_1.VentaEntity)
 ], Registro_ventaEntity.prototype, "venta", void 0);
 __decorate([
@@ -48,7 +52,7 @@ __decorate([
         onUpdate: "CASCADE",
         nullable: true,
     }),
-    (0, typeorm_1.JoinColumn)({ name: "ID_producto" }),
+    (0, typeorm_1.JoinColumn)({ name: "ID_producto", referencedColumnName: "ID_producto" }),
     __metadata("design:type", productoEntity_1.ProductoEntity)
 ], Registro_ventaEntity.prototype, "producto", void 0);
 exports.Registro_ventaEntity = Registro_ventaEntity = __decorate([

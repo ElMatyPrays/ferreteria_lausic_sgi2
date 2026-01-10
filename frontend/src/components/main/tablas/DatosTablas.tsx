@@ -1,6 +1,4 @@
-//src/components/main/tablas/DatosTablas.tsx
 import { FiEdit2, FiTrash2 } from "react-icons/fi";
-
 import "./tabla.css";
 
 export interface Column {
@@ -32,6 +30,8 @@ function normalizeEstadoPago(v: any): boolean {
       s === "false" ||
       s === "0" ||
       s === "pendiente" ||
+      s === "no pagado" ||
+      s === "nopagado" ||
       s === "por pagar" ||
       s === "porpagar" ||
       s === "por_pagar"
@@ -52,6 +52,9 @@ export default function DataTable({
 }: Props) {
   const hasData = rows.length > 0;
 
+  // ✅ SOLO si hay acciones, mostramos la columna
+  const showActions = Boolean(onEdit || onDelete);
+
   return (
     <div className="mc-table-wrap">
       <table className="mc-table">
@@ -66,7 +69,8 @@ export default function DataTable({
                 {c.header}
               </th>
             ))}
-            {(onEdit || onDelete) && (
+
+            {showActions && (
               <th style={{ width: "100px" }} className="mc-align-center">
                 Acciones
               </th>
@@ -77,7 +81,7 @@ export default function DataTable({
         <tbody>
           {!hasData && (
             <tr>
-              <td className="mc-empty" colSpan={columns.length + ((onEdit || onDelete) ? 1 : 0)}>
+              <td className="mc-empty" colSpan={columns.length + (showActions ? 1 : 0)}>
                 Sin datos por ahora. Seleccione alguna opción.
               </td>
             </tr>
@@ -91,12 +95,19 @@ export default function DataTable({
                   const extraClass = getCellClassName ? getCellClassName(c, row) || "" : "";
                   const cellValue = row[c.key];
 
-                  // ✅ Ventas: estado (pero SOLO cuando estoy en recurso "ventas")
-                  const isEstadoPagoVentas =
-                    (c.key === "estado" || c.key === "Estado") && resourceKey === "ventas";
+                  // ✅ Ventas: estado_pago SOLO cuando resourceKey === "ventas"
+                  const isEstadoPagoVentas = c.key === "estado_pago" && resourceKey === "ventas";
 
-                  const shouldFormatPago = isEstadoPagoVentas;
-                  const isPaid = shouldFormatPago ? normalizeEstadoPago(cellValue) : false;
+                  if (isEstadoPagoVentas) {
+                    const paid = normalizeEstadoPago(cellValue);
+                    return (
+                      <td key={c.key} className={`${alignClass} ${extraClass}`.trim()}>
+                        <span className={paid ? "dt-pill dt-pill-ok" : "dt-pill dt-pill-bad"}>
+                          {paid ? "Pagado" : "No pagado"}
+                        </span>
+                      </td>
+                    );
+                  }
 
                   return (
                     <td key={c.key} className={`${alignClass} ${extraClass}`.trim()}>
@@ -109,10 +120,6 @@ export default function DataTable({
                         >
                           Ver archivo
                         </a>
-                      ) : shouldFormatPago ? (
-                        <span className={isPaid ? "dt-estado-pago" : "dt-estado-pendiente"}>
-                          {isPaid ? "Pagada" : "Pendiente"}
-                        </span>
                       ) : (
                         cellValue ?? "—"
                       )}
@@ -120,20 +127,23 @@ export default function DataTable({
                   );
                 })}
 
-                <td className="mc-align-center">
-                  <div className="mc-actions">
-                    {onEdit && (
-                      <button className="mc-icon-btn mc-edit" title="Editar" onClick={() => onEdit(idx)}>
-                        <FiEdit2 />
-                      </button>
-                    )}
-                    {onDelete && (
-                      <button className="mc-icon-btn mc-danger" title="Eliminar" onClick={() => onDelete(idx)}>
-                        <FiTrash2 />
-                      </button>
-                    )}
-                  </div>
-                </td>
+                {/* ✅ SOLO renderizo TD acciones si hay acciones */}
+                {showActions && (
+                  <td className="mc-align-center">
+                    <div className="mc-actions">
+                      {onEdit && (
+                        <button className="mc-icon-btn mc-edit" title="Editar" onClick={() => onEdit(idx)}>
+                          <FiEdit2 />
+                        </button>
+                      )}
+                      {onDelete && (
+                        <button className="mc-icon-btn mc-danger" title="Eliminar" onClick={() => onDelete(idx)}>
+                          <FiTrash2 />
+                        </button>
+                      )}
+                    </div>
+                  </td>
+                )}
               </tr>
             ))}
         </tbody>

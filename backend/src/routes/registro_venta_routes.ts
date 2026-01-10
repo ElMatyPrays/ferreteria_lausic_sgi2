@@ -11,9 +11,14 @@ registroVentaRouter.post("/", async (req, res) => {
     const created = await service.create(req.body);
     res.status(201).json(created);
   } catch (e: any) {
-    res.status(400).json({ message: e?.message ?? "Error al crear registro de venta" });
+    const msg = e?.message ?? "Error al crear registro de venta";
+    if (msg.toLowerCase().includes("venta pagada")) {
+      return res.status(409).json({ message: msg });
+    }
+    return res.status(400).json({ message: msg });
   }
 });
+
 
 // READ ALL (filtros)
 registroVentaRouter.get("/", async (req, res) => {
@@ -67,9 +72,14 @@ registroVentaRouter.put("/:id", async (req, res) => {
     const updated = await service.update(id, req.body);
     res.json(updated);
   } catch (e: any) {
-    res.status(400).json({ message: e?.message ?? "Error al actualizar registro de venta" });
+    const msg = e?.message ?? "Error al actualizar registro de venta";
+    if (msg.toLowerCase().includes("venta pagada")) {
+      return res.status(409).json({ message: msg });
+    }
+    return res.status(400).json({ message: msg });
   }
 });
+
 
 // DELETE
 registroVentaRouter.delete("/:id", async (req, res) => {
@@ -78,6 +88,11 @@ registroVentaRouter.delete("/:id", async (req, res) => {
     const out = await service.remove(id);
     res.json(out);
   } catch (e: any) {
-    res.status(400).json({ message: e?.message ?? "Error al eliminar registro de venta" });
+    const msg = e?.message ?? "Error al eliminar registro de venta";
+    if (msg.toLowerCase().includes("venta pagada")) {
+      return res.status(409).json({ message: msg });
+    }
+    return res.status(400).json({ message: msg });
   }
 });
+

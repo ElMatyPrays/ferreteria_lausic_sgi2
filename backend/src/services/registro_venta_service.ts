@@ -9,37 +9,101 @@ import type {
   RegistroVentaQueryDTO,
 } from "../DTO/registro_ventaDTO";
 
+
+const round2 = (n: number) => Math.round(n * 100) / 100;
+
+
 export class RegistroVentaService {
-  private repo() {
-    return AppDataSource.getRepository(Registro_ventaEntity);
+
+  
+
+  private repo(manager = AppDataSource.manager) {
+    return manager.getRepository(Registro_ventaEntity);
   }
 
+  private ventaRepo(manager = AppDataSource.manager) {
+    return manager.getRepository(VentaEntity);
+  }
+
+  private prodRepo(manager = AppDataSource.manager) {
+    return manager.getRepository(ProductoEntity);
+  }
+
+  // ✅ Recalcula total de una venta desde registro_venta
+  private async recalcVentaTotal(manager: any, idVenta: number) {
+    const row = await this.repo(manager)
+      .createQueryBuilder("rv")
+      .select("COALESCE(SUM(rv.subtotal), 0)", "total")
+      .where("rv.ID_venta = :id", { id: idVenta })
+      .getRawOne<{ total: string }>();
+
+    const total = Number(row?.total ?? 0);
+
+    await this.ventaRepo(manager).update(
+      { ID_venta: idVenta } as any,
+      { total } as any
+    );
+
+    return total;
+  }
+
+  // ✅ Regla: no modificar items si venta está pagada
+  private async ensureVentaEditable(manager: any, idVenta: number) {
+    const venta = await this.ventaRepo(manager).findOne({
+      where: { ID_venta: Number(idVenta) } as any,
+    });
+    if (!venta) throw new Error("Venta no encontrada");
+    if (venta.estado_pago === true) throw new Error("No se pueden modificar items de una venta pagada");
+    return venta;
+  }
+
+  // ✅ CREATE: descuenta stock, calcula subtotal, recalcula total
   async create(dto: CreateRegistroVentaDTO) {
     if (!dto.ID_venta || Number.isNaN(Number(dto.ID_venta))) throw new Error("ID_venta es requerido");
     if (!dto.ID_producto || Number.isNaN(Number(dto.ID_producto))) throw new Error("ID_producto es requerido");
     if (dto.cantidad == null || Number.isNaN(Number(dto.cantidad)) || Number(dto.cantidad) <= 0)
       throw new Error("cantidad inválida");
-    if (dto.subtotal == null || Number.isNaN(Number(dto.subtotal)) || Number(dto.subtotal) < 0)
-      throw new Error("subtotal inválido");
 
-    const ventaRepo = AppDataSource.getRepository(VentaEntity);
-    const prodRepo = AppDataSource.getRepository(ProductoEntity);
+    const idVenta = Number(dto.ID_venta);
+    const idProducto = Number(dto.ID_producto);
+    const cantidad = Number(dto.cantidad);
 
-    const venta = await ventaRepo.findOne({ where: { ID_venta: Number(dto.ID_venta) } });
-    if (!venta) throw new Error("Venta no encontrada");
+    return await AppDataSource.transaction(async (manager) => {
+      await this.ensureVentaEditable(manager, idVenta);
 
-    const producto = await prodRepo.findOne({ where: { ID_producto: Number(dto.ID_producto) } });
-    if (!producto) throw new Error("Producto no encontrado");
+      const producto = await this.prodRepo(manager).findOne({
+        where: { ID_producto: idProducto } as any,
+      });
+      if (!producto) throw new Error("Producto no encontrado");
 
-    const entity = this.repo().create({
-      ID_producto: Number(dto.ID_producto),
-      cantidad: Number(dto.cantidad),
-      subtotal: Number(dto.subtotal),
-      venta,
-      producto,
+      if (producto.stock < cantidad) {
+        throw new Error(`Stock insuficiente. Disponible: ${producto.stock}, requerido: ${cantidad}`);
+      }
+
+      // ✅ calcular subtotal real
+      const subtotal = round2(Number(producto.precio_venta) * cantidad);
+
+
+      // ✅ descuenta stock
+      producto.stock = producto.stock - cantidad;
+      await this.prodRepo(manager).save(producto);
+
+      const entity = this.repo(manager).create({
+        ID_producto: idProducto,
+        cantidad,
+        subtotal,
+        // importante: setear relación para FK ID_venta
+        venta: { ID_venta: idVenta } as any,
+        producto,
+      } as any);
+
+      const saved = await this.repo(manager).save(entity);
+
+      // ✅ recalcular total de la venta
+      await this.recalcVentaTotal(manager, idVenta);
+
+      return saved;
     });
-
-    return await this.repo().save(entity);
   }
 
   async findAll(q: RegistroVentaQueryDTO = {}) {
@@ -59,7 +123,7 @@ export class RegistroVentaService {
     if (!id || Number.isNaN(id)) throw new Error("id inválido");
 
     const entity = await this.repo().findOne({
-      where: { ID_registro_venta: id },
+      where: { ID_registro_venta: id } as any,
       relations: {
         producto: relations?.producto ?? false,
         venta: relations?.venta ?? false,
@@ -70,42 +134,115 @@ export class RegistroVentaService {
     return entity;
   }
 
+  // ✅ UPDATE: ajusta stock por delta, recalcula subtotal, recalcula total
   async update(id: number, dto: UpdateRegistroVentaDTO) {
-    const current = await this.findById(id);
+    if (!id || Number.isNaN(id)) throw new Error("id inválido");
 
-    if (dto.cantidad != null) {
-      const c = Number(dto.cantidad);
-      if (Number.isNaN(c) || c <= 0) throw new Error("cantidad inválida");
-      current.cantidad = c;
-    }
+    return await AppDataSource.transaction(async (manager) => {
+      const regRepo = this.repo(manager);
+      const prodRepo = this.prodRepo(manager);
 
-    if (dto.subtotal != null) {
-      const s = Number(dto.subtotal);
-      if (Number.isNaN(s) || s < 0) throw new Error("subtotal inválido");
-      current.subtotal = s;
-    }
+      const current = await regRepo.findOne({
+        where: { ID_registro_venta: Number(id) } as any,
+      });
+      if (!current) throw new Error("Registro de venta no encontrado");
 
-    if (dto.ID_producto != null) {
-      const prodRepo = AppDataSource.getRepository(ProductoEntity);
-      const producto = await prodRepo.findOne({ where: { ID_producto: Number(dto.ID_producto) } });
-      if (!producto) throw new Error("Producto no encontrado");
-      current.ID_producto = Number(dto.ID_producto);
-      current.producto = producto;
-    }
+      const idVenta = Number((current as any).ID_venta);
+      await this.ensureVentaEditable(manager, idVenta);
 
-    if (dto.ID_venta != null) {
-      const ventaRepo = AppDataSource.getRepository(VentaEntity);
-      const venta = await ventaRepo.findOne({ where: { ID_venta: Number(dto.ID_venta) } });
-      if (!venta) throw new Error("Venta no encontrada");
-      current.venta = venta;
-    }
+      const oldProductoId = Number((current as any).ID_producto);
+      const oldCantidad = Number((current as any).cantidad);
 
-    return await this.repo().save(current);
+      const nextProductoId =
+        dto.ID_producto != null ? Number(dto.ID_producto) : oldProductoId;
+
+      const nextCantidad =
+        dto.cantidad != null ? Number(dto.cantidad) : oldCantidad;
+
+      if (!Number.isInteger(nextProductoId) || nextProductoId <= 0) throw new Error("ID_producto inválido");
+      if (!Number.isFinite(nextCantidad) || nextCantidad <= 0) throw new Error("cantidad inválida");
+
+      // Caso 1: mismo producto
+      if (nextProductoId === oldProductoId) {
+        const prod = await prodRepo.findOne({ where: { ID_producto: oldProductoId } as any });
+        if (!prod) throw new Error("Producto no encontrado");
+
+        const delta = nextCantidad - oldCantidad; // + => descuenta más, - => devuelve
+        if (delta > 0 && prod.stock < delta) {
+          throw new Error(`Stock insuficiente. Disponible: ${prod.stock}, requerido extra: ${delta}`);
+        }
+
+        prod.stock = prod.stock - delta;
+        await prodRepo.save(prod);
+
+        (current as any).cantidad = nextCantidad;
+        (current as any).subtotal = Number(prod.precio_venta) * nextCantidad;
+
+        const saved = await regRepo.save(current);
+        await this.recalcVentaTotal(manager, idVenta);
+        return saved;
+      }
+
+      // Caso 2: cambió producto
+      const oldProd = await prodRepo.findOne({ where: { ID_producto: oldProductoId } as any });
+      if (!oldProd) throw new Error("Producto anterior no encontrado");
+
+      const newProd = await prodRepo.findOne({ where: { ID_producto: nextProductoId } as any });
+      if (!newProd) throw new Error("Producto nuevo no encontrado");
+
+      // devolver stock al producto viejo
+      oldProd.stock = oldProd.stock + oldCantidad;
+      await prodRepo.save(oldProd);
+
+      // descontar stock del producto nuevo
+      if (newProd.stock < nextCantidad) {
+        throw new Error(`Stock insuficiente en nuevo producto. Disponible: ${newProd.stock}, requerido: ${nextCantidad}`);
+      }
+      newProd.stock = newProd.stock - nextCantidad;
+      await prodRepo.save(newProd);
+
+      (current as any).ID_producto = nextProductoId;
+      (current as any).producto = newProd;
+      (current as any).cantidad = nextCantidad;
+      (current as any).subtotal = Number(newProd.precio_venta) * nextCantidad;
+
+      const saved = await regRepo.save(current);
+      await this.recalcVentaTotal(manager, idVenta);
+      return saved;
+    });
   }
 
+  // ✅ DELETE: devuelve stock, recalcula total
   async remove(id: number) {
-    const entity = await this.findById(id);
-    await this.repo().remove(entity);
-    return { ok: true };
+    if (!id || Number.isNaN(id)) throw new Error("id inválido");
+
+    return await AppDataSource.transaction(async (manager) => {
+      const regRepo = this.repo(manager);
+      const prodRepo = this.prodRepo(manager);
+
+      const entity = await regRepo.findOne({
+        where: { ID_registro_venta: Number(id) } as any,
+      });
+      if (!entity) throw new Error("Registro de venta no encontrado");
+
+      const idVenta = Number((entity as any).ID_venta);
+      await this.ensureVentaEditable(manager, idVenta);
+
+      const prod = await prodRepo.findOne({
+        where: { ID_producto: Number((entity as any).ID_producto) } as any,
+      });
+      if (!prod) throw new Error("Producto no encontrado");
+
+      // devolver stock
+      prod.stock = prod.stock + Number((entity as any).cantidad);
+      await prodRepo.save(prod);
+
+      await regRepo.remove(entity);
+
+      // recalcula total venta
+      await this.recalcVentaTotal(manager, idVenta);
+
+      return { ok: true };
+    });
   }
 }
