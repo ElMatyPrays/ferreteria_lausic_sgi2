@@ -1,0 +1,60 @@
+CREATE DATABASE IF NOT EXISTS ferreteria_lausic_db;
+
+USE ferreteria_lausic_db;
+
+CREATE TABLE usuario(
+    ID_usuario INT NOT NULL PRIMARY KEY AUTO_INCREMENT UNIQUE,
+    email VARCHAR(255) NOT NULL UNIQUE,
+    nombre VARCHAR(120) NOT NULL DEFAULT 0,
+    passwrd VARCHAR(255) NOT NULL,
+    rol TINYINT NOT NULL,
+    activo TINYINT(1) NOT NULL DEFAULT 1,
+    created_at DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP,
+    updated_at DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
+    UNIQUE KEY uq_usuario_email (email)
+);
+
+CREATE TABLE producto(
+    ID_producto INT NOT NULL PRIMARY KEY AUTO_INCREMENT UNIQUE,
+    SKU VARCHAR(255) NOT NULL UNIQUE,
+    codigo_barras VARCHAR(255) NOT NULL UNIQUE,
+    nombre VARCHAR(255) NOT NULL,
+    tipo VARCHAR(255) NOT NULL,
+    variante VARCHAR(255) NOT NULL DEFAULT 0,
+    marca VARCHAR(255) NOT NULL DEFAULT 0,
+    proveedor VARCHAR(255) NOT NULL DEFAULT 0,
+    precio_compra INT NOT NULL DEFAULT 0,
+    stock INT NOT NULL DEFAULT 0,
+    precio_venta INT NOT NULL DEFAULT 0
+);
+
+CREATE TABLE cliente(
+    ID_cliente INT NOT NULL PRIMARY KEY AUTO_INCREMENT UNIQUE,
+    rut VARCHAR(10) NOT NULL,
+    razon_social VARCHAR(255) NOT NULL,
+    tipo_de_compra VARCHAR(50) NOT NULL,
+    giro VARCHAR(255) NOT NULL,
+    direccion VARCHAR(255) NOT NULL,
+    comuna VARCHAR(255) NOT NULL,
+    ciudad VARCHAR(255) NOT NULL,
+    contacto VARCHAR(255) NOT NULL DEFAULT 0,
+    tipo_descuento TINYINT(3) NOT NULL
+);
+
+CREATE TABLE venta(
+    ID_venta INT NOT NULL PRIMARY KEY AUTO_INCREMENT UNIQUE,
+    ID_cliente INT,
+    total INT NOT NULL DEFAULT 0,
+    fecha DATETIME NOT NULL,
+    estado_pago BOOLEAN NOT NULL DEFAULT FALSE
+);
+
+CREATE TABLE registro_venta(
+    ID_registro_venta INT NOT NULL PRIMARY KEY AUTO_INCREMENT UNIQUE,
+    ID_venta INT NOT NULL,
+    ID_producto INT NOT NULL,
+    cantidad INT NOT NULL,
+    subtotal INT NOT NULL,
+    FOREIGN KEY (ID_venta) REFERENCES venta(ID_venta) ON DELETE CASCADE ON UPDATE CASCADE,
+    FOREIGN KEY (ID_producto) REFERENCES producto(ID_producto)
+);
