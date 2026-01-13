@@ -134,6 +134,9 @@ class VentasService {
     async createConItems(dto) {
         if (!dto.items?.length)
             throw new Error("items es requerido y no puede venir vacío");
+        const IVA = 0.19;
+        const modoIva = dto.modo_iva === "neto" ? "neto" : "incluye_iva";
+        // Validación básica de items
         for (const [i, it] of dto.items.entries()) {
             if (it.ID_producto == null || Number.isNaN(Number(it.ID_producto))) {
                 throw new Error(`items[${i}].ID_producto inválido`);
@@ -146,14 +149,21 @@ class VentasService {
             const ventaRepo = manager.getRepository(ventaEntity_1.VentaEntity);
             const regRepo = manager.getRepository(registro_ventaEntity_1.Registro_ventaEntity);
             const prodRepo = manager.getRepository(productoEntity_1.ProductoEntity);
-            // 1) Traer productos involucrados
+            // ✅ tipo documento
+            const tipo = dto.tipo_documento === "factura" ? "factura" : "boleta";
+            // ✅ normalizar cliente + reglas
+            const idClienteNorm = this.normalizeIdCliente(dto.ID_cliente) ?? null;
+            if (tipo === "factura" && !idClienteNorm) {
+                throw new Error("Para Factura debes seleccionar un cliente");
+            }
+            // 1) Traer productos
             const ids = dto.items.map((i) => Number(i.ID_producto));
             const productos = await prodRepo
                 .createQueryBuilder("p")
                 .where("p.ID_producto IN (:...ids)", { ids })
                 .getMany();
             const mapProd = new Map(productos.map((p) => [p.ID_producto, p]));
-            // 2) Sumar cantidades por producto (por si se repite en items)
+            // 2) Sumar cantidades por producto
             const qtyPorProducto = new Map();
             for (const it of dto.items) {
                 const idp = Number(it.ID_producto);
@@ -169,12 +179,14 @@ class VentasService {
                     throw new Error(`Stock insuficiente para "${prod.nombre}" (ID=${idp}). Disponible: ${prod.stock}, requerido: ${qtyTotal}`);
                 }
             }
-            // 4) Normalizar items calculando subtotal desde precio_venta
+            // 4) Normalizar items calculando subtotal
             const itemsNormalizados = dto.items.map((it) => {
                 const prod = mapProd.get(Number(it.ID_producto));
                 const cantidad = Number(it.cantidad);
-                const subtotal = prod.precio_venta * cantidad;
-                // Si viene subtotal, validarlo (opcional)
+                const base = prod.precio_venta * cantidad;
+                const subtotal = modoIva === "neto"
+                    ? Math.round(base * (1 + IVA)) // neto -> cobras con IVA
+                    : base; // incluye IVA -> cobras tal cual
                 if (it.subtotal != null && Number(it.subtotal) !== subtotal) {
                     throw new Error(`Subtotal inválido para producto ID=${prod.ID_producto}. Esperado: ${subtotal}, recibido: ${it.subtotal}`);
                 }
@@ -186,9 +198,11 @@ class VentasService {
                 };
             });
             const total = itemsNormalizados.reduce((acc, it) => acc + it.subtotal, 0);
-            // 5) Crear venta
+            // 5) Crear venta (✅ con tipo_documento + regla cliente)
             const venta = ventaRepo.create({
-                ID_cliente: this.normalizeIdCliente(dto.ID_cliente) ?? null, // ✅
+                tipo_documento: tipo,
+                modo_iva: modoIva,
+                ID_cliente: tipo === "factura" ? idClienteNorm : null,
                 total,
                 estado_pago: dto.estado_pago ?? false,
                 fecha: dto.fecha ? new Date(dto.fecha) : undefined,
@@ -216,6 +230,41 @@ class VentasService {
             });
             return full ?? savedVenta;
         });
+    }
+    // ✅ helper: calcula neto/iva desde un total "final"
+    calcResumen(total, conIva, tasa = 0.19) {
+        const t = Math.round(Number(total) || 0);
+        if (!conIva) {
+            return { neto: t, iva: 0, total: t };
+        }
+        const neto = Math.round(t / (1 + tasa));
+        const iva = t - neto;
+        return { neto, iva, total: t };
+    }
+    /**
+     * ✅ Venta lista para imprimir / mostrar resumen
+     * - trae venta + registroVentas + producto
+     * - genera resumen con IVA o sin IVA (según parámetro)
+     */
+    async getVentaParaImprimir(idVenta, conIva) {
+        if (!idVenta || Number.isNaN(Number(idVenta)))
+            throw new Error("idVenta inválido");
+        const ventaRepo = this.repo();
+        const venta = await ventaRepo.findOne({
+            where: { ID_venta: idVenta },
+            relations: { registroVentas: { producto: true } }, // 👈 importante
+        });
+        if (!venta)
+            throw new Error("Venta no encontrada");
+        // ✅ si no te mandan conIva, decisión por tipo_documento:
+        // - boleta: normalmente NO desglosas (conIva=false)
+        // - factura: normalmente SI desglosas (conIva=true)
+        const modoIva = venta.modo_iva ?? "incluye_iva";
+        const conIvaFinal = typeof conIva === "boolean"
+            ? conIva
+            : venta.tipo_documento === "factura";
+        const resumen = this.calcResumen(venta.total, conIvaFinal);
+        return { venta, resumen, conIva: conIvaFinal, modoIva: venta.modo_iva ?? "incluye_iva" };
     }
 }
 exports.VentasService = VentasService;

@@ -8,7 +8,8 @@ export class VentaEntity {
   ID_venta: number;
 
   @Column("int", { name: "ID_cliente", nullable: true })
-  ID_cliente: number;
+  ID_cliente: number | null;
+
 
   @Column({
     type: "enum",
@@ -26,6 +27,14 @@ export class VentaEntity {
 
   @Column({ type: "tinyint", default: () => "0" })
   estado_pago: boolean;
+  
+  @Column({
+    type: "enum",
+    enum: ["incluye_iva", "neto"],
+    default: "incluye_iva",
+  })
+  modo_iva: "incluye_iva" | "neto";
+
 
   @OneToMany(() => Registro_ventaEntity, (lv) => lv.venta)
   registroVentas!: Registro_ventaEntity[];

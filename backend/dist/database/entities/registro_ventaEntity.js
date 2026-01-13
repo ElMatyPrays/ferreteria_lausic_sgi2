@@ -10,7 +10,7 @@ var __metadata = (this && this.__metadata) || function (k, v) {
 };
 Object.defineProperty(exports, "__esModule", { value: true });
 exports.Registro_ventaEntity = void 0;
-// src/database/entities/lista_ventasEntity.ts
+// src/database/entities/registro_ventaEntity.ts
 const typeorm_1 = require("typeorm");
 const productoEntity_1 = require("./productoEntity");
 const ventaEntity_1 = require("./ventaEntity");

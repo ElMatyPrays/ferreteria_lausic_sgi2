@@ -66,6 +66,7 @@ export function useVentas(enabled: boolean, filters?: VentaFilters) {
     [enabled, load]
   );
 
+  
   // CREATE (with items)
   const createWithItems = useCallback(
     async (input: VentaWithItemsInput) => {
@@ -73,8 +74,9 @@ export function useVentas(enabled: boolean, filters?: VentaFilters) {
       setLoading(true);
       setError(null);
       try {
-        await createVentaWithItems(input);
+        const created = await createVentaWithItems(input); // 👈 capturar
         await load();
+        return created; // 👈 CLAVE: devolver venta creada
       } catch (err: any) {
         console.error("Error creando venta (items):", err);
         setError(err?.message || "Error al crear venta");
@@ -85,6 +87,7 @@ export function useVentas(enabled: boolean, filters?: VentaFilters) {
     },
     [enabled, load]
   );
+
 
   // ✅ UPDATE: parcial
   const update = useCallback(

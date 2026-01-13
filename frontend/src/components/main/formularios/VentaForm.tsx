@@ -6,6 +6,8 @@ import { useVentas } from "../../../hooks/useVentas";
 import Modal from "../../modals/Modal";
 import "./VentaForm.css";
 
+import { apiFetch } from "../../../services/apiFetch";
+
 type Props = {
   mode?: "create";
   onCancel?: () => void;
@@ -24,13 +26,20 @@ const EMPTY_ITEM: VentaItemUI = { id: "", cantidad: "1" };
 export default function VentaForm({
   mode = "create",
   onCancel,
-  onSuccess,
   hideHeader,
   autoFocusBarcode = true,
 }: Props) {
   const { data: productosRows, loading: productosLoading } = useProductos(true);
   const { data: clientesRows, loading: clientesLoading } = useClientes(true);
-  const { createWithItems: createVentaWithItems, reload: reloadVentas } = useVentas(true);
+  const { createWithItems: createVentaWithItems } = useVentas(true);
+
+  const [openPost, setOpenPost] = useState(false);
+  const [postVentaId, setPostVentaId] = useState<number | null>(null);
+  const [postTipoDoc, setPostTipoDoc] = useState<"boleta" | "factura">("boleta");
+  const [postConIva, setPostConIva] = useState(false);
+  const [printing, setPrinting] = useState(false);
+  const [printError, setPrintError] = useState<string | null>(null);
+
 
   const [notify, setNotify] = useState<string>("");
 
@@ -43,12 +52,16 @@ export default function VentaForm({
     estado_pago: string;
     ID_cliente: string;
     tipo_documento: "boleta" | "factura";
+    modo_iva: "incluye_iva" | "neto";
   }>({
     fecha: new Date().toISOString().slice(0, 10),
     estado_pago: "false",
     ID_cliente: "",
     tipo_documento: "boleta",
+    modo_iva: "incluye_iva",
   });
+
+  
 
   const [items, setItems] = useState<VentaItemUI[]>([{ ...EMPTY_ITEM }]);
   const [barcodes, setBarcodes] = useState<string[]>([""]);
@@ -88,13 +101,22 @@ export default function VentaForm({
     return Number((row as any)?.precio_venta ?? 0) || 0;
   };
 
+  const IVA = 0.19;
+
   const getSubtotal = (it: VentaItemUI) => {
     const qty = Number(it.cantidad);
     if (!Number.isFinite(qty) || qty <= 0) return 0;
-    return round2(getUnitPrice(it.id) * qty);
+
+    const base = round2(getUnitPrice(it.id) * qty);
+    return form.modo_iva === "neto" ? Math.round(base * (1 + IVA)) : base;
   };
 
-  const total = useMemo(() => items.reduce((acc, it) => acc + getSubtotal(it), 0), [items, productosRows]);
+
+
+  const total = useMemo(
+    () => items.reduce((acc, it) => acc + getSubtotal(it), 0),
+    [items, productosRows, form.modo_iva]
+  );
 
   const findProductoByBarcode = (raw: string) => {
     const code = String(raw || "").trim();
@@ -163,6 +185,7 @@ export default function VentaForm({
       estado_pago: "false",
       ID_cliente: "",
       tipo_documento: "boleta",
+      modo_iva: "incluye_iva",
     });
 
     setItems([{ ...EMPTY_ITEM }]);
@@ -195,6 +218,7 @@ export default function VentaForm({
 
     return {
       tipo_documento: form.tipo_documento,
+      modo_iva: form.modo_iva,
       ID_cliente: form.tipo_documento === "factura" ? Number(form.ID_cliente) : null,
       fecha: form.fecha ? String(form.fecha) : undefined,
       estado_pago: form.estado_pago === "true" || form.estado_pago === "1",
@@ -216,24 +240,74 @@ export default function VentaForm({
   };
 
   const handleConfirmCreate = async () => {
+    console.log("CLICK confirmar");
     setSaving(true);
     setConfirmError(null);
     setNotify("");
 
     try {
       const payload = buildPayload();
-      await createVentaWithItems(payload);
+      console.log("[VENTA] payload:", payload);
 
-      await reloadVentas?.();
-      setNotify("Creado correctamente.");
-      resetForm();
-      onSuccess?.();
+      const created = await createVentaWithItems(payload);
+      console.log("[VENTA] created:", created);
+
+      const id = Number((created as any)?.ID_venta ?? (created as any)?.venta?.ID_venta);
+      console.log("[VENTA] id:", id);
+
+      if (!id) throw new Error("No pude obtener el ID de la venta creada");
+
+      setPostVentaId(id);
+      setPostTipoDoc(payload.tipo_documento ?? "boleta");
+      setPostConIva(payload.tipo_documento === "factura");
+
+      setOpenConfirm(false);
+      setOpenPost(true);
     } catch (err: any) {
+      console.error(err);
       setConfirmError(err?.message || "Error al crear venta");
     } finally {
       setSaving(false);
     }
   };
+
+
+
+  const imprimir = async (conIvaOverride?: boolean) => {
+    if (!postVentaId) return;
+
+    const conIvaFinal = typeof conIvaOverride === "boolean" ? conIvaOverride : postConIva;
+
+    setPrinting(true);
+    setPrintError(null);
+
+    try {
+      console.log("[PRINT] enviando...", { id_venta: postVentaId, conIva: conIvaFinal });
+
+      const r = await apiFetch("/api/printer/print", {
+        method: "POST",
+        body: JSON.stringify({
+          id_venta: postVentaId,
+          conIva: conIvaFinal,
+        }),
+      });
+
+      const data = await r.json().catch(() => ({}));
+      console.log("[PRINT] response:", data);
+
+      if (!r.ok) throw new Error(data?.error || "Error al imprimir");
+
+      setNotify("✅ Enviado a impresión.");
+    } catch (e: any) {
+      console.error("[PRINT] error:", e);
+      setPrintError(e?.message || "Error al imprimir");
+    } finally {
+      setPrinting(false);
+    }
+  };
+
+
+
 
   // ✅ Resumen para el modal
   const resumen = useMemo(() => {
@@ -339,6 +413,19 @@ export default function VentaForm({
                 <option value="factura">Factura</option>
               </select>
             </label>
+
+            <label style={{ display: "grid", gap: 6 }}>
+              <span style={{ fontSize: 12, opacity: 0.85 }}>Precios</span>
+              <select
+                className="md-input"
+                value={form.modo_iva}
+                onChange={(e) => setForm((p) => ({ ...p, modo_iva: e.target.value as any }))}
+              >
+                <option value="incluye_iva">Incluye IVA</option>
+                <option value="neto">Neto (sumar IVA)</option>
+              </select>
+            </label>
+
 
             <label style={{ display: "grid", gap: 6 }}>
               <span style={{ fontSize: 12, opacity: 0.85 }}>Cliente</span>
@@ -568,6 +655,78 @@ export default function VentaForm({
           </div>
         </div>
       </Modal>
+
+      <Modal
+        open={openPost}
+        title="Venta creada"
+        onClose={() => {
+          if (printing) return;
+          setOpenPost(false);
+          setPrintError(null);
+
+          // ✅ ahora sí reseteamos para una nueva venta
+          resetForm();
+        }}
+      >
+        <div style={{ display: "grid", gap: 12 }}>
+          <div style={{ display: "grid", gap: 6 }}>
+            <div><b>ID Venta:</b> {postVentaId ?? "-"}</div>
+            <div><b>Documento:</b> {postTipoDoc === "factura" ? "Factura" : "Boleta"}</div>
+          </div>
+
+          <label style={{ display: "flex", gap: 10, alignItems: "center" }}>
+            <input
+              type="checkbox"
+              checked={postConIva}
+              onChange={(e) => setPostConIva(e.target.checked)}
+              disabled={printing}
+            />
+            <span>Mostrar IVA (desglose neto/IVA)</span>
+          </label>
+
+          {printError && <div style={{ color: "#ff6b6b", fontSize: 13 }}>{printError}</div>}
+
+          <div style={{ display: "flex", justifyContent: "flex-end", gap: 10 }}>
+            <button
+              className="md-btn"
+              type="button"
+              onClick={() => {
+                if (printing) return;
+                setOpenPost(false);
+                setPrintError(null);
+                resetForm();
+              }}
+              disabled={printing}
+            >
+              Cerrar
+            </button>
+
+            <button
+              className="md-btn"
+              type="button"
+              onClick={() => imprimir(false)}
+              disabled={printing || !postVentaId}
+            >
+              {printing ? "Imprimiendo..." : "Imprimir Boleta"}
+            </button>
+
+            {postTipoDoc === "factura" && (
+              <button
+                className="md-btn primary"
+                type="button"
+                onClick={() => imprimir(true)}
+                disabled={printing || !postVentaId}
+              >
+                {printing ? "Imprimiendo..." : "Imprimir Factura"}
+              </button>
+            )}
+
+
+          </div>
+        </div>
+      </Modal>
+
+
     </div>
   );
 }

@@ -1,4 +1,4 @@
-// src/database/entities/lista_ventasEntity.ts
+// src/database/entities/registro_ventaEntity.ts
 import { Entity, PrimaryGeneratedColumn, Column, ManyToOne, JoinColumn } from "typeorm";
 import { ProductoEntity } from "./productoEntity";
 import { VentaEntity } from "./ventaEntity";

@@ -1,3 +1,5 @@
+// src/database/entities/productoEntity.ts
+
 import { Entity, PrimaryGeneratedColumn, Column, OneToMany } from "typeorm";
 import { Registro_ventaEntity } from "./registro_ventaEntity";
 

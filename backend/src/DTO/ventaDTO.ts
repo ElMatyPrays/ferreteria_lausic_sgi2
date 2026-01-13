@@ -20,6 +20,7 @@ export type VentaQueryDTO = {
 
 // Para crear venta con detalle en una sola llamada
 export type CreateVentaConItemsDTO = {
+  modo_iva?: "incluye_iva" | "neto";
   tipo_documento?: "boleta" | "factura";
   ID_cliente?: number | null;
   estado_pago?: boolean;

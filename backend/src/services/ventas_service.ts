@@ -158,6 +158,11 @@ export class VentasService {
   async createConItems(dto: CreateVentaConItemsDTO) {
     if (!dto.items?.length) throw new Error("items es requerido y no puede venir vacío");
 
+    const IVA = 0.19;
+    const modoIva: "incluye_iva" | "neto" =
+      (dto as any).modo_iva === "neto" ? "neto" : "incluye_iva";
+
+
     // Validación básica de items
     for (const [i, it] of dto.items.entries()) {
       if (it.ID_producto == null || Number.isNaN(Number(it.ID_producto))) {
@@ -215,7 +220,12 @@ export class VentasService {
       const itemsNormalizados = dto.items.map((it) => {
         const prod = mapProd.get(Number(it.ID_producto))!;
         const cantidad = Number(it.cantidad);
-        const subtotal = prod.precio_venta * cantidad;
+        const base = prod.precio_venta * cantidad;
+
+        const subtotal =
+          modoIva === "neto"
+            ? Math.round(base * (1 + IVA))     // neto -> cobras con IVA
+            : base;                             // incluye IVA -> cobras tal cual
 
         if (it.subtotal != null && Number(it.subtotal) !== subtotal) {
           throw new Error(
@@ -236,11 +246,13 @@ export class VentasService {
       // 5) Crear venta (✅ con tipo_documento + regla cliente)
       const venta = ventaRepo.create({
         tipo_documento: tipo,
+        modo_iva: modoIva,
         ID_cliente: tipo === "factura" ? idClienteNorm : null,
         total,
         estado_pago: dto.estado_pago ?? false,
         fecha: dto.fecha ? new Date(dto.fecha as any) : undefined,
       });
+
 
       const savedVenta = await ventaRepo.save(venta);
 
@@ -272,5 +284,54 @@ export class VentasService {
       return full ?? savedVenta;
     });
   }
+
+  // ✅ helper: calcula neto/iva desde un total "final"
+  private calcResumen(total: number, conIva: boolean, tasa = 0.19) {
+    const t = Math.round(Number(total) || 0);
+
+    if (!conIva) {
+      return { neto: t, iva: 0, total: t };
+    }
+
+    const neto = Math.round(t / (1 + tasa));
+    const iva = t - neto;
+
+    return { neto, iva, total: t };
+  }
+
+  /**
+   * ✅ Venta lista para imprimir / mostrar resumen
+   * - trae venta + registroVentas + producto
+   * - genera resumen con IVA o sin IVA (según parámetro)
+   */
+  async getVentaParaImprimir(idVenta: number, conIva?: boolean) {
+    if (!idVenta || Number.isNaN(Number(idVenta))) throw new Error("idVenta inválido");
+
+    const ventaRepo = this.repo();
+
+    const venta = await ventaRepo.findOne({
+      where: { ID_venta: idVenta },
+      relations: { registroVentas: { producto: true } }, // 👈 importante
+    });
+
+    if (!venta) throw new Error("Venta no encontrada");
+
+    // ✅ si no te mandan conIva, decisión por tipo_documento:
+    // - boleta: normalmente NO desglosas (conIva=false)
+    // - factura: normalmente SI desglosas (conIva=true)
+
+    const modoIva = (venta as any).modo_iva ?? "incluye_iva";
+
+    const conIvaFinal =
+      typeof conIva === "boolean"
+        ? conIva
+        : (venta as any).tipo_documento === "factura";
+
+    const resumen = this.calcResumen(venta.total, conIvaFinal);
+
+    return { venta, resumen, conIva: conIvaFinal, modoIva: (venta as any).modo_iva ?? "incluye_iva" };
+
+  }
+
 
 }

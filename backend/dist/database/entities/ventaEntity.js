@@ -25,6 +25,14 @@ __decorate([
     __metadata("design:type", Number)
 ], VentaEntity.prototype, "ID_cliente", void 0);
 __decorate([
+    (0, typeorm_1.Column)({
+        type: "enum",
+        enum: ["boleta", "factura"],
+        default: "boleta",
+    }),
+    __metadata("design:type", String)
+], VentaEntity.prototype, "tipo_documento", void 0);
+__decorate([
     (0, typeorm_1.Column)("int", { name: "total", nullable: false }),
     __metadata("design:type", Number)
 ], VentaEntity.prototype, "total", void 0);
@@ -36,6 +44,14 @@ __decorate([
     (0, typeorm_1.Column)({ type: "tinyint", default: () => "0" }),
     __metadata("design:type", Boolean)
 ], VentaEntity.prototype, "estado_pago", void 0);
+__decorate([
+    (0, typeorm_1.Column)({
+        type: "enum",
+        enum: ["incluye_iva", "neto"],
+        default: "incluye_iva",
+    }),
+    __metadata("design:type", String)
+], VentaEntity.prototype, "modo_iva", void 0);
 __decorate([
     (0, typeorm_1.OneToMany)(() => registro_ventaEntity_1.Registro_ventaEntity, (lv) => lv.venta),
     __metadata("design:type", Array)
