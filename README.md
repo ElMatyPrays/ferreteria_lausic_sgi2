@@ -1,8 +1,5 @@
 Cambios en la bdd
 
-ALTER TABLE venta
-ADD COLUMN ID_cliente INT NULL AFTER ID_venta;
-
 
 ALTER TABLE venta
   ADD COLUMN tipo_documento ENUM('boleta','factura') NOT NULL DEFAULT 'boleta';
