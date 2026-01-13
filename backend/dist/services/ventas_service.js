@@ -7,6 +7,18 @@ const ventaEntity_1 = require("../database/entities/ventaEntity");
 const registro_ventaEntity_1 = require("../database/entities/registro_ventaEntity");
 const productoEntity_1 = require("../database/entities/productoEntity");
 class VentasService {
+    normalizeIdCliente(v) {
+        // undefined = no venía en el body => no tocar
+        if (v === undefined)
+            return undefined;
+        // null = explícitamente quitar cliente
+        if (v === null || v === "")
+            return null;
+        const n = Number(v);
+        if (!Number.isInteger(n) || n <= 0)
+            throw new Error("ID_cliente inválido");
+        return n;
+    }
     async recalcTotalFromItems(idVenta) {
         const regRepo = dbORM_1.AppDataSource.getRepository(registro_ventaEntity_1.Registro_ventaEntity);
         // suma de subtotales de la venta
@@ -26,6 +38,7 @@ class VentasService {
         if (Number(dto.total) < 0)
             throw new Error("total no puede ser negativo");
         const entity = this.repo().create({
+            ID_cliente: dto.ID_cliente ?? null,
             total: Number(dto.total),
             estado_pago: dto.estado_pago ?? false,
             fecha: dto.fecha ? new Date(dto.fecha) : undefined,
@@ -76,21 +89,22 @@ class VentasService {
     }
     async update(id, dto) {
         const venta = await this.findById(id, false);
-        // ✅ si tiene items, el total lo manda el backend
+        // ✅ actualizar ID_cliente si viene
+        const idClienteNorm = this.normalizeIdCliente(dto.ID_cliente);
+        if (idClienteNorm !== undefined) {
+            venta.ID_cliente = idClienteNorm; // number | null
+        }
         const tieneItems = await dbORM_1.AppDataSource.getRepository(registro_ventaEntity_1.Registro_ventaEntity).exist({
             where: { ID_venta: id },
         });
-        // fecha / estado_pago siempre permitidos
         if (dto.fecha != null)
             venta.fecha = new Date(dto.fecha);
         if (dto.estado_pago != null)
             venta.estado_pago = Boolean(dto.estado_pago);
         if (tieneItems) {
-            // 🚫 ignorar total del front y recalcular
             venta.total = await this.recalcTotalFromItems(id);
         }
         else {
-            // ✅ si NO tiene items, se permite total manual
             if (dto.total != null) {
                 const t = Number(dto.total);
                 if (Number.isNaN(t))
@@ -174,6 +188,7 @@ class VentasService {
             const total = itemsNormalizados.reduce((acc, it) => acc + it.subtotal, 0);
             // 5) Crear venta
             const venta = ventaRepo.create({
+                ID_cliente: this.normalizeIdCliente(dto.ID_cliente) ?? null, // ✅
                 total,
                 estado_pago: dto.estado_pago ?? false,
                 fecha: dto.fecha ? new Date(dto.fecha) : undefined,

@@ -55,7 +55,7 @@ const columnsBySection: Record<Section, Column[]> = {
     { key: "rut", header: "RUT", width: "140px" },
     { key: "razon_social", header: "Razón social", width: "160px" },
     { key: "tipo_de_compra", header: "Tipo de compra", width: "160px" },
-    { key: "giro", header: "Giro", width: "140px", align: "right", numeric: true },
+    { key: "giro", header: "Giro", width: "140px", align: "right"},
     { key: "direccion", header: "Dirección", width: "160px" },
     { key: "comuna", header: "Comuna", width: "160px" },
     { key: "ciudad", header: "Ciudad", width: "160px" },
