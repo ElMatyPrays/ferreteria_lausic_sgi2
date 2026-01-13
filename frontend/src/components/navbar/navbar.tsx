@@ -37,6 +37,12 @@ export function Navbar() {
               </NavLink>
             </li>
             
+
+            <li>
+              <NavLink to="/crearventas" className={({ isActive }) => (isActive ? "active" : "")}>
+                Crear Ventas
+              </NavLink>
+            </li>
               
             <li>
               <NavLink to="/ventas" className={({ isActive }) => (isActive ? "active" : "")}>

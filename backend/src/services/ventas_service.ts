@@ -158,6 +158,7 @@ export class VentasService {
   async createConItems(dto: CreateVentaConItemsDTO) {
     if (!dto.items?.length) throw new Error("items es requerido y no puede venir vacío");
 
+    // Validación básica de items
     for (const [i, it] of dto.items.entries()) {
       if (it.ID_producto == null || Number.isNaN(Number(it.ID_producto))) {
         throw new Error(`items[${i}].ID_producto inválido`);
@@ -172,7 +173,17 @@ export class VentasService {
       const regRepo = manager.getRepository(Registro_ventaEntity);
       const prodRepo = manager.getRepository(ProductoEntity);
 
-      // 1) Traer productos involucrados
+      // ✅ tipo documento
+      const tipo = (dto as any).tipo_documento === "factura" ? "factura" : "boleta";
+
+      // ✅ normalizar cliente + reglas
+      const idClienteNorm = this.normalizeIdCliente((dto as any).ID_cliente) ?? null;
+
+      if (tipo === "factura" && !idClienteNorm) {
+        throw new Error("Para Factura debes seleccionar un cliente");
+      }
+
+      // 1) Traer productos
       const ids = dto.items.map((i) => Number(i.ID_producto));
       const productos = await prodRepo
         .createQueryBuilder("p")
@@ -181,7 +192,7 @@ export class VentasService {
 
       const mapProd = new Map(productos.map((p) => [p.ID_producto, p]));
 
-      // 2) Sumar cantidades por producto (por si se repite en items)
+      // 2) Sumar cantidades por producto
       const qtyPorProducto = new Map<number, number>();
       for (const it of dto.items) {
         const idp = Number(it.ID_producto);
@@ -200,13 +211,12 @@ export class VentasService {
         }
       }
 
-      // 4) Normalizar items calculando subtotal desde precio_venta
+      // 4) Normalizar items calculando subtotal
       const itemsNormalizados = dto.items.map((it) => {
         const prod = mapProd.get(Number(it.ID_producto))!;
         const cantidad = Number(it.cantidad);
         const subtotal = prod.precio_venta * cantidad;
 
-        // Si viene subtotal, validarlo (opcional)
         if (it.subtotal != null && Number(it.subtotal) !== subtotal) {
           throw new Error(
             `Subtotal inválido para producto ID=${prod.ID_producto}. Esperado: ${subtotal}, recibido: ${it.subtotal}`
@@ -223,14 +233,14 @@ export class VentasService {
 
       const total = itemsNormalizados.reduce((acc, it) => acc + it.subtotal, 0);
 
-      // 5) Crear venta
+      // 5) Crear venta (✅ con tipo_documento + regla cliente)
       const venta = ventaRepo.create({
-        ID_cliente: this.normalizeIdCliente((dto as any).ID_cliente) ?? null, // ✅
+        tipo_documento: tipo,
+        ID_cliente: tipo === "factura" ? idClienteNorm : null,
         total,
         estado_pago: dto.estado_pago ?? false,
-        fecha: dto.fecha ? new Date(dto.fecha) : undefined,
+        fecha: dto.fecha ? new Date(dto.fecha as any) : undefined,
       });
-
 
       const savedVenta = await ventaRepo.save(venta);
 
@@ -251,7 +261,6 @@ export class VentasService {
           producto: it.producto,
         })
       );
-
       await regRepo.save(registros);
 
       // 8) Devolver venta con items
@@ -263,4 +272,5 @@ export class VentasService {
       return full ?? savedVenta;
     });
   }
+
 }

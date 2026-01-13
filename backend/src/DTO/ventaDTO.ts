@@ -1,10 +1,12 @@
 // src/DTO/ventaDTO.ts
 export type CreateVentaDTO = {
+  tipo_documento?: "boleta" | "factura";
   ID_cliente?: number | null;
   total: number;
   fecha?: string;
   estado_pago?: boolean;
 };
+
 
 export type UpdateVentaDTO = Partial<CreateVentaDTO>;
 
@@ -18,13 +20,15 @@ export type VentaQueryDTO = {
 
 // Para crear venta con detalle en una sola llamada
 export type CreateVentaConItemsDTO = {
+  tipo_documento?: "boleta" | "factura";
   ID_cliente?: number | null;
   estado_pago?: boolean;
   fecha?: string | Date;
   items: Array<{
     ID_producto: number;
     cantidad: number;
-    subtotal?: number; // ✅ opcional
+    subtotal?: number;
   }>;
 };
+
 

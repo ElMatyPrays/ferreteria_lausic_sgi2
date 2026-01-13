@@ -1,4 +1,5 @@
 // src/components/main/formularios/formDinamico.tsx
+
 import type { Column, Row } from "../types";
 
 interface FormDinamicoProps {

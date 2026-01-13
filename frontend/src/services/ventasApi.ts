@@ -12,6 +12,7 @@ import { apiFetch } from "./apiFetch";
 
 export type VentaDTO = {
   ID_venta: number;
+  tipo_documento?: "boleta" | "factura";
   ID_cliente?: number | null;
   total: number;
   fecha: string; // ISO
@@ -40,11 +41,13 @@ export type VentaItemInput = {
 };
 
 export type VentaWithItemsInput = {
+  tipo_documento?: "boleta" | "factura";
   ID_cliente?: number | null;
   fecha?: string;
   estado_pago?: boolean;
   items: VentaItemInput[];
 };
+
 
 export interface VentaFilters {
   q?: string;

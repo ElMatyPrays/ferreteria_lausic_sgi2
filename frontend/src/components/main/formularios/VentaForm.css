@@ -1,0 +1,135 @@
+/* src/components/main/formularios/VentaForm.css */
+
+/* Fuerza al form a ocupar ancho real en modo página */
+.venta-form-root.md-card{
+  width: 100% !important;
+  max-width: 1100px !important;
+  margin: 0 auto !important;
+
+  max-height: none !important;
+  overflow: visible !important;
+
+  background: var(--mc-card) !important;
+  color: var(--mc-text) !important;
+  border: 1px solid var(--mc-grid) !important;
+  border-radius: 14px !important;
+  box-shadow: 0 10px 30px rgba(0,0,0,.35) !important;
+
+  display: flex !important;
+  flex-direction: column !important;
+}
+
+/* Header / body / footer */
+.venta-form-root .md-header{
+  padding: 12px 16px !important;
+  background: var(--mc-panel) !important;
+  border-bottom: 1px solid #00000055 !important;
+  border-top-left-radius: 14px !important;
+  border-top-right-radius: 14px !important;
+}
+
+.venta-form-root .md-body{
+  padding: 16px !important;
+  overflow: visible !important;
+}
+
+.venta-form-root .md-footer{
+  padding: 12px 16px !important;
+  background: var(--mc-panel) !important;
+  border-top: 1px solid #00000055 !important;
+  border-bottom-left-radius: 14px !important;
+  border-bottom-right-radius: 14px !important;
+
+  display: flex !important;
+  justify-content: flex-end !important;
+  gap: 8px !important;
+}
+
+/* Inputs */
+.venta-form-root .md-input,
+.venta-form-root select.md-input{
+  width: 100% !important;
+  height: 36px !important;
+  padding: 8px 10px !important;
+  border-radius: 8px !important;
+  border: 1px solid var(--mc-grid) !important;
+  background: var(--mc-card) !important;
+  color: var(--mc-text) !important;
+  box-sizing: border-box !important;
+  font-size: 14px !important;
+  font-family: inherit !important;
+}
+
+.venta-form-root .md-input[readonly]{
+  background: rgba(255,255,255,0.04) !important;
+  opacity: .9 !important;
+}
+
+/* Botones */
+.venta-form-root .md-btn{
+  padding: 8px 14px !important;
+  border-radius: 8px !important;
+  border: 1px solid var(--mc-grid) !important;
+  background: var(--mc-card) !important;
+  color: var(--mc-text) !important;
+  cursor: pointer !important;
+}
+
+.venta-form-root .md-btn.primary{
+  background: #3b82f6 !important;
+  color: #fff !important;
+  border-color: transparent !important;
+}
+
+.venta-form-root .md-btn.danger{
+  background: #ef4444 !important;
+  color: #fff !important;
+  border-color: transparent !important;
+}
+
+/* Items vendidos */
+.venta-form-root .venta-items{
+  margin-top: 12px !important;
+  padding: 12px !important;
+  border: 1px solid var(--mc-grid) !important;
+  border-radius: 12px !important;
+  background: rgba(255,255,255,0.02) !important;
+}
+
+.venta-form-root .venta-item-row{
+  display: grid !important;
+  grid-template-columns: 140px 1fr 240px 120px 120px 44px !important;
+  gap: 10px !important;
+  align-items: end !important;
+  margin-bottom: 10px !important;
+}
+
+.venta-form-root .venta-item-row select,
+.venta-form-root .venta-item-row input{
+  min-width: 0 !important;
+}
+
+/* Total */
+.venta-form-root .venta-total{
+  display: flex !important;
+  justify-content: flex-end !important;
+  margin-top: 10px !important;
+}
+
+.venta-form-root .venta-total-box{
+  width: 260px !important;
+  display: grid !important;
+  gap: 6px !important;
+}
+
+/* Responsive */
+@media (max-width: 780px){
+  .venta-form-root .venta-item-row{
+    grid-template-columns: 1fr 1fr !important;
+    align-items: start !important;
+  }
+
+  .venta-form-root .venta-total-box{
+    width: 100% !important;
+  }
+}

@@ -584,3 +584,45 @@ select.md-input:focus {
 
 
 
+
+
+/* =========================
+   CARD COMO PÁGINA (no modal)
+   ========================= */
+
+.md-card.md-inline {
+  width: 100%;
+  max-width: 1300px;
+  max-height: none;
+}
+
+
+
+.venta-item-row {
+  min-width: 0;
+}
+
+.venta-item-row label {
+  min-width: 0;
+}
+
+.venta-item-row select,
+.venta-item-row input {
+  min-width: 0;
+}
+
+
+/* Cuando se combinan modificadores (lg + inline), inline debe ganar */
+.md-card.md-card-lg.md-inline {
+  width: 100%;
+  max-width: 1300px;
+  max-height: none;
+}
+
+
+
+.md-card.md-card-lg.md-inline {
+  width: 100%;
+  max-width: 1300px;
+  max-height: none;
+}

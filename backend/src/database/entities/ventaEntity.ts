@@ -10,6 +10,14 @@ export class VentaEntity {
   @Column("int", { name: "ID_cliente", nullable: true })
   ID_cliente: number;
 
+  @Column({
+    type: "enum",
+    enum: ["boleta", "factura"],
+    default: "boleta",
+  })
+  tipo_documento: "boleta" | "factura";
+
+
   @Column("int", { name: "total", nullable: false })
   total: number;
 

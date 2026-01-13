@@ -1,6 +1,7 @@
 // src/components/main/maincontent.tsx
 import { useEffect, useMemo, useState } from "react";
 import type { ReactNode } from "react";
+import { useNavigate } from "react-router-dom";
 import { getUser } from "../../utils/auth";
 import Modal from "../modals/Modal";
 import type { Column, Row, Section } from "../main/types";
@@ -33,6 +34,7 @@ import {
 } from "../../services/listaVentasApi";
 
 import { FiSettings, FiRefreshCw, FiPlus } from "react-icons/fi";
+
 
 /* =========================
    Columnas base (sin tabs)
@@ -125,6 +127,7 @@ interface MainContentProps {
 type ModalKind = "none" | "create" | "edit" | "confirm" | "notify";
 
 export default function MainContent({ section, venTab: venTabProp, onVenTabChange }: MainContentProps) {
+  const navigate = useNavigate();
   const user = getUser();
   const role = user?.rol ?? "LECTOR";
 
@@ -403,7 +406,6 @@ export default function MainContent({ section, venTab: venTabProp, onVenTabChang
   } else {
     active = demoConfig;
   }
-
   const isListaVentas = active.key === "lista_ventas";
   const readOnlyKeysListaVentas = ["ID_registro_venta", "ID_venta", "ID_producto", "subtotal"];
 
@@ -544,15 +546,8 @@ export default function MainContent({ section, venTab: venTabProp, onVenTabChang
 
   const openCreate = () => {
     if (active.key === "ventas") {
-      setVentaItems([EMPTY_ITEM]);
-      setVentaItemsOriginal([]);
-      setVentaBarcodes([""]);
-      setFormData({
-        fecha: new Date().toISOString().slice(0, 10),
-        estado_pago: "false",
-        ID_cliente: "", // ✅
-      });
-      setModal("create");
+      // ✅ Crear venta ahora es una página dedicada (no modal)
+      navigate("/ventas/crear");
       return;
     }
 
@@ -844,12 +839,14 @@ export default function MainContent({ section, venTab: venTabProp, onVenTabChang
           </button>
         )}
 
-        {active.create && canWrite && (
+        {/* Ventas ahora se crean en una página dedicada (navbar), no desde modal */}
+        {active.create && canWrite && active.key !== "ventas" && (
           <button className="mc-btn mc-btn-primary" onClick={openCreate}>
             <FiPlus />
-            Crear
+            {`Crear ${section}`}
           </button>
         )}
+
 
         {active.loading && <span style={{ fontSize: 12, opacity: 0.8 }}>Cargando…</span>}
       </div>
@@ -885,181 +882,23 @@ export default function MainContent({ section, venTab: venTabProp, onVenTabChang
 
       {!isReadOnly && (
         <>
-          {/* CREATE */}
-          <Modal
-            open={modal === "create"}
-            title={active.key === "ventas" ? "Crear venta" : `Crear en ${section}`}
-            onClose={closeModal}
-            className={active.key === "ventas" ? "mc-card-lg" : ""}
-            actions={
-              <>
-                <button className="md-btn" onClick={closeModal}>
-                  Cancelar
-                </button>
-                <button className="md-btn primary" onClick={submitCreate}>
-                  Guardar
-                </button>
-              </>
-            }
-          >
-            {active.key === "ventas" ? (
-              <div className="venta-modal">
-                <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr 1fr", gap: 12 }}>
-                  <label style={{ display: "grid", gap: 6 }}>
-                    <span style={{ fontSize: 12, opacity: 0.85 }}>Fecha</span>
-                    <input
-                      className="md-input"
-                      type="date"
-                      value={String(formData.fecha || "")}
-                      onChange={(e) => onChangeField("fecha", e.target.value)}
-                    />
-                  </label>
-
-                  <label style={{ display: "grid", gap: 6 }}>
-                    <span style={{ fontSize: 12, opacity: 0.85 }}>Estado</span>
-                    <select
-                      className="md-input"
-                      value={String(formData.estado_pago || "false")}
-                      onChange={(e) => onChangeField("estado_pago", e.target.value)}
-                    >
-                      <option value="false">Pendiente</option>
-                      <option value="true">Pagada</option>
-                    </select>
-                  </label>
-
-                  {/* ✅ Cliente */}
-                  <label style={{ display: "grid", gap: 6 }}>
-                    <span style={{ fontSize: 12, opacity: 0.85 }}>Cliente</span>
-                    <select
-                      className="md-input"
-                      value={String(formData.ID_cliente || "")}
-                      onChange={(e) => onChangeField("ID_cliente", e.target.value)}
-                      disabled={clientesLoading}
-                    >
-                      <option value="">{clientesLoading ? "Cargando..." : "-- Sin cliente --"}</option>
-                      {clientesRows.map((c: any) => (
-                        <option key={String(c.ID_cliente)} value={String(c.ID_cliente)}>
-                          {String(c.razon_social)} ({String(c.rut)})
-                        </option>
-                      ))}
-                    </select>
-                  </label>
-                </div>
-
-                <div className="venta-items">
-                  <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: 10 }}>
-                    <strong>Items vendidos</strong>
-                    <button
-                      className="md-btn"
-                      type="button"
-                      onClick={() => {
-                        setVentaItems((prev) => [...prev, { ...EMPTY_ITEM }]);
-                      }}
-                    >
-                      + Agregar item
-                    </button>
-                  </div>
-
-                  <div style={{ display: "grid", gap: 10 }}>
-                    {ventaItems.map((it, idx) => {
-                      const precio = getUnitPrice(it.id);
-                      const subtotal = getSubtotal(it);
-
-                      return (
-                        <div key={idx} className="venta-item-row">
-                          <label style={{ display: "grid", gap: 6 }}>
-                            <span style={{ fontSize: 12, opacity: 0.85 }}>Producto</span>
-                            <select
-                              className="md-input"
-                              value={it.id}
-                              onChange={(e) =>
-                                setVentaItems((prev) =>
-                                  prev.map((p, i) => (i === idx ? { ...p, id: e.target.value } : p))
-                                )
-                              }
-                            >
-                              <option value="">-- Selecciona --</option>
-                              {productosRows.map((r: any) => (
-                                <option key={String(r.ID_producto)} value={String(r.ID_producto)}>
-                                  {String(r.nombre)}
-                                </option>
-                              ))}
-                            </select>
-                          </label>
-
-                          <label style={{ display: "grid", gap: 6 }}>
-                            <span style={{ fontSize: 12, opacity: 0.85 }}>Código barras</span>
-                            <input
-                              className="md-input"
-                              id={`venta-barcode-${idx}`}
-                              inputMode="numeric"
-                              placeholder="Escanea y presiona Enter"
-                              value={ventaBarcodes[idx] ?? ""}
-                              onChange={(e) =>
-                                setVentaBarcodes((prev) => prev.map((v, i) => (i === idx ? e.target.value : v)))
-                              }
-                              onKeyDown={(e) => {
-                                if (e.key === "Enter") {
-                                  e.preventDefault();
-                                  applyBarcodeToItem(idx);
-                                }
-                              }}
-                            />
-                          </label>
-
-                          <label style={{ display: "grid", gap: 6 }}>
-                            <span style={{ fontSize: 12, opacity: 0.85 }}>Cantidad</span>
-                            <input
-                              className="md-input"
-                              id={`venta-cant-${idx}`}
-                              type="number"
-                              min={0.01}
-                              step={0.01}
-                              value={it.cantidad}
-                              onChange={(e) =>
-                                setVentaItems((prev) =>
-                                  prev.map((p, i) => (i === idx ? { ...p, cantidad: e.target.value } : p))
-                                )
-                              }
-                            />
-                          </label>
-
-                          <label style={{ display: "grid", gap: 6 }}>
-                            <span style={{ fontSize: 12, opacity: 0.85 }}>Precio</span>
-                            <input className="md-input" value={String(precio)} readOnly />
-                          </label>
-
-                          <label style={{ display: "grid", gap: 6 }}>
-                            <span style={{ fontSize: 12, opacity: 0.85 }}>Subtotal</span>
-                            <input className="md-input" value={String(subtotal)} readOnly />
-                          </label>
-
-                          <button
-                            className="md-btn danger"
-                            type="button"
-                            onClick={() => {
-                              setVentaItems((prev) => prev.filter((_, i) => i !== idx));
-                              setVentaBarcodes((prev) => prev.filter((_, i) => i !== idx));
-                            }}
-                            title="Eliminar item"
-                            disabled={ventaItems.length === 1}
-                          >
-                            ✕
-                          </button>
-                        </div>
-                      );
-                    })}
-                  </div>
-                </div>
-
-                <div className="venta-total">
-                  <div className="venta-total-box">
-                    <span style={{ fontSize: 12, opacity: 0.85 }}>Total (calculado)</span>
-                    <input className="md-input" value={String(ventaTotal)} readOnly />
-                  </div>
-                </div>
-              </div>
-            ) : (
+          {/* CREATE (ventas ahora se crea en una página dedicada) */}
+          {active.key !== "ventas" && (
+            <Modal
+              open={modal === "create"}
+              title={`Crear en ${section}`}
+              onClose={closeModal}
+              actions={
+                <>
+                  <button className="md-btn" onClick={closeModal}>
+                    Cancelar
+                  </button>
+                  <button className="md-btn primary" onClick={submitCreate}>
+                    Guardar
+                  </button>
+                </>
+              }
+            >
               <FormDinamico
                 columns={columns}
                 formData={formData}
@@ -1069,8 +908,8 @@ export default function MainContent({ section, venTab: venTabProp, onVenTabChang
                 ventasOptions={active.key === "lista_ventas" ? ventasRows : undefined}
                 productosOptions={active.key === "lista_ventas" ? productosRows : undefined}
               />
-            )}
-          </Modal>
+            </Modal>
+          )}
 
           {/* EDIT */}
           <Modal
@@ -1133,7 +972,6 @@ export default function MainContent({ section, venTab: venTabProp, onVenTabChang
                   </label>
                 </div>
 
-                {/* el resto del modal (items) queda igual */}
                 <div className="venta-items">
                   <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: 10 }}>
                     <strong>Items vendidos</strong>
@@ -1159,9 +997,7 @@ export default function MainContent({ section, venTab: venTabProp, onVenTabChang
                               className="md-input"
                               value={it.id}
                               onChange={(e) =>
-                                setVentaItems((prev) =>
-                                  prev.map((p, i) => (i === idx ? { ...p, id: e.target.value } : p))
-                                )
+                                setVentaItems((prev) => prev.map((p, i) => (i === idx ? { ...p, id: e.target.value } : p)))
                               }
                             >
                               <option value="">-- Selecciona --</option>
@@ -1278,6 +1114,7 @@ export default function MainContent({ section, venTab: venTabProp, onVenTabChang
           </Modal>
         </>
       )}
+
 
       {stockSectionKey && (
         <StockColorConfigModal

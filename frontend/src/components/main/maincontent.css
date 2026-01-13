@@ -1,3 +1,4 @@
+/* src/components/main/maincontent.css */
 .mc-root {
   /* Variables LOCALES del Main */
   --mc-panel: #2a2b2d;
@@ -280,6 +281,5 @@
 @keyframes spin {
   to { transform: rotate(360deg); }
 }
-
 
 
