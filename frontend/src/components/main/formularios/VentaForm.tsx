@@ -40,7 +40,6 @@ export default function VentaForm({
   const [printing, setPrinting] = useState(false);
   const [printError, setPrintError] = useState<string | null>(null);
 
-
   const [notify, setNotify] = useState<string>("");
 
   const [openConfirm, setOpenConfirm] = useState(false);
@@ -61,11 +60,27 @@ export default function VentaForm({
     modo_iva: "incluye_iva",
   });
 
-  
-
   const [items, setItems] = useState<VentaItemUI[]>([{ ...EMPTY_ITEM }]);
   const [barcodes, setBarcodes] = useState<string[]>([""]);
 
+  /* =======================
+     LIMITE FACTURA (9 distintos)
+  ======================= */
+  const MAX_FACTURA_DISTINTOS = 9;
+  const isFactura = form.tipo_documento === "factura";
+
+  const distinctCount = useMemo(() => {
+    const s = new Set(
+      items
+        .map((it) => String(it.id || "").trim())
+        .filter((id) => id !== "")
+    );
+    return s.size;
+  }, [items]);
+
+  /* =======================
+     Effects
+  ======================= */
   // asegura longitudes
   useEffect(() => {
     if (barcodes.length !== items.length) {
@@ -89,6 +104,9 @@ export default function VentaForm({
     }, 0);
   }, [autoFocusBarcode, items.length]);
 
+  /* =======================
+     Helpers
+  ======================= */
   const round2 = (n: number) => Math.round(n * 100) / 100;
 
   const money = (n: number) =>
@@ -110,8 +128,6 @@ export default function VentaForm({
     const base = round2(getUnitPrice(it.id) * qty);
     return form.modo_iva === "neto" ? Math.round(base * (1 + IVA)) : base;
   };
-
-
 
   const total = useMemo(
     () => items.reduce((acc, it) => acc + getSubtotal(it), 0),
@@ -144,6 +160,7 @@ export default function VentaForm({
 
     const foundId = findProductoByBarcode(code);
 
+    // ✅ primero validar si existe
     if (!foundId) {
       setNotify(`Código de barras no encontrado: ${code}`);
       setBarcodes((prev) => prev.map((v, i) => (i === idx ? "" : v)));
@@ -160,6 +177,21 @@ export default function VentaForm({
           const nextQty = (Number(p.cantidad) || 0) + 1;
           return { ...p, cantidad: String(nextQty) };
         });
+      }
+
+      // ✅ si es FACTURA y estamos intentando agregar un producto NUEVO
+      if (form.tipo_documento === "factura") {
+        const setActual = new Set(
+          prev
+            .map((it) => String(it.id || "").trim())
+            .filter((id) => id !== "")
+        );
+
+        // foundId NO existe (porque no estaba arriba)
+        if (setActual.size >= MAX_FACTURA_DISTINTOS) {
+          setNotify("❌ En Factura solo se permiten 9 productos distintos. Divide la venta en otra factura.");
+          return prev; // no cambiar
+        }
       }
 
       // si la fila actual está vacía, úsala
@@ -204,6 +236,18 @@ export default function VentaForm({
       throw new Error("Para Factura debes seleccionar un cliente");
     }
 
+    // ✅ VALIDACIÓN 9 distintos en factura
+    if (form.tipo_documento === "factura") {
+      const s = new Set(
+        items
+          .map((it) => String(it.id || "").trim())
+          .filter((id) => id !== "")
+      );
+      if (s.size > MAX_FACTURA_DISTINTOS) {
+        throw new Error("Una factura solo puede contener hasta 9 productos distintos.");
+      }
+    }
+
     const payloadItems = items
       .filter((it) => String(it.id || "").trim() !== "") // ignora filas vacías
       .map((it, i) => {
@@ -240,21 +284,16 @@ export default function VentaForm({
   };
 
   const handleConfirmCreate = async () => {
-    console.log("CLICK confirmar");
     setSaving(true);
     setConfirmError(null);
     setNotify("");
 
     try {
       const payload = buildPayload();
-      console.log("[VENTA] payload:", payload);
 
       const created = await createVentaWithItems(payload);
-      console.log("[VENTA] created:", created);
 
       const id = Number((created as any)?.ID_venta ?? (created as any)?.venta?.ID_venta);
-      console.log("[VENTA] id:", id);
-
       if (!id) throw new Error("No pude obtener el ID de la venta creada");
 
       setPostVentaId(id);
@@ -271,8 +310,6 @@ export default function VentaForm({
     }
   };
 
-
-
   const imprimir = async (conIvaOverride?: boolean) => {
     if (!postVentaId) return;
 
@@ -282,8 +319,6 @@ export default function VentaForm({
     setPrintError(null);
 
     try {
-      console.log("[PRINT] enviando...", { id_venta: postVentaId, conIva: conIvaFinal });
-
       const r = await apiFetch("/api/printer/print", {
         method: "POST",
         body: JSON.stringify({
@@ -293,8 +328,6 @@ export default function VentaForm({
       });
 
       const data = await r.json().catch(() => ({}));
-      console.log("[PRINT] response:", data);
-
       if (!r.ok) throw new Error(data?.error || "Error al imprimir");
 
       setNotify("✅ Enviado a impresión.");
@@ -305,9 +338,6 @@ export default function VentaForm({
       setPrinting(false);
     }
   };
-
-
-
 
   // ✅ Resumen para el modal
   const resumen = useMemo(() => {
@@ -330,22 +360,10 @@ export default function VentaForm({
         const precio = getUnitPrice(it.id);
         const subtotal = getSubtotal(it);
 
-        return {
-          nombre,
-          cantidad: it.cantidad,
-          precio,
-          subtotal,
-        };
+        return { nombre, cantidad: it.cantidad, precio, subtotal };
       });
 
-    return {
-      documento,
-      fecha: form.fecha,
-      estado,
-      cliente,
-      items: itemsResumen,
-      total,
-    };
+    return { documento, fecha: form.fecha, estado, cliente, items: itemsResumen, total };
   }, [form, items, total, clientesRows, productosRows]);
 
   return (
@@ -415,17 +433,16 @@ export default function VentaForm({
             </label>
 
             <label style={{ display: "grid", gap: 6 }}>
-              <span style={{ fontSize: 12, opacity: 0.85 }}>Precios</span>
+              <span style={{ fontSize: 12, opacity: 0.85 }}>IVA</span>
               <select
                 className="md-input"
                 value={form.modo_iva}
                 onChange={(e) => setForm((p) => ({ ...p, modo_iva: e.target.value as any }))}
               >
-                <option value="incluye_iva">Incluye IVA</option>
-                <option value="neto">Neto (sumar IVA)</option>
+                <option value="incluye_iva">No afecta</option>
+                <option value="neto">Afecta</option>
               </select>
             </label>
-
 
             <label style={{ display: "grid", gap: 6 }}>
               <span style={{ fontSize: 12, opacity: 0.85 }}>Cliente</span>
@@ -439,8 +456,8 @@ export default function VentaForm({
                   {clientesLoading
                     ? "Cargando..."
                     : form.tipo_documento === "boleta"
-                      ? "-- Sin cliente (Boleta) --"
-                      : "-- Selecciona cliente (Factura) --"}
+                    ? "-- Sin cliente (Boleta) --"
+                    : "-- Selecciona cliente (Factura) --"}
                 </option>
 
                 {clientesRows.map((c: any) => (
@@ -454,11 +471,29 @@ export default function VentaForm({
 
           <div className="venta-items">
             <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: 10 }}>
-              <strong>Items vendidos</strong>
+              <div style={{ display: "flex", flexDirection: "column", gap: 2 }}>
+                <strong>Items vendidos</strong>
+                {isFactura && (
+                  <span style={{ fontSize: 12, opacity: 0.75 }}>
+                    Productos distintos: {distinctCount}/{MAX_FACTURA_DISTINTOS}
+                  </span>
+                )}
+              </div>
+
               <button
                 className="md-btn"
                 type="button"
+                disabled={isFactura && distinctCount >= MAX_FACTURA_DISTINTOS}
+                title={
+                  isFactura && distinctCount >= MAX_FACTURA_DISTINTOS
+                    ? "En Factura solo se permiten 9 productos distintos"
+                    : "Agregar item"
+                }
                 onClick={() => {
+                  if (isFactura && distinctCount >= MAX_FACTURA_DISTINTOS) {
+                    setNotify("❌ En Factura solo se permiten 9 productos distintos.");
+                    return;
+                  }
                   setItems((prev) => [...prev, { ...EMPTY_ITEM }]);
                   setBarcodes((prev) => [...prev, ""]);
                 }}
@@ -479,9 +514,40 @@ export default function VentaForm({
                       <select
                         className="md-input"
                         value={it.id}
-                        onChange={(e) =>
-                          setItems((prev) => prev.map((p, i) => (i === idx ? { ...p, id: e.target.value } : p)))
-                        }
+                        onChange={(e) => {
+                          const nextId = e.target.value;
+
+                          setItems((prev) => {
+                            const prevId = String(prev[idx]?.id || "").trim();
+
+                            // si borra (elige vacío) siempre permitir
+                            if (!nextId) {
+                              return prev.map((p, i) => (i === idx ? { ...p, id: "" } : p));
+                            }
+
+                            // si no es factura, permitir
+                            if (form.tipo_documento !== "factura") {
+                              return prev.map((p, i) => (i === idx ? { ...p, id: nextId } : p));
+                            }
+
+                            // factura: contar distintos si aplicamos el cambio
+                            const setActual = new Set(
+                              prev
+                                .map((x) => String(x.id || "").trim())
+                                .filter((id) => id !== "")
+                            );
+
+                            if (prevId) setActual.delete(prevId);
+                            setActual.add(String(nextId));
+
+                            if (setActual.size > MAX_FACTURA_DISTINTOS) {
+                              setNotify("❌ En Factura solo se permiten 9 productos distintos.");
+                              return prev; // no cambiar
+                            }
+
+                            return prev.map((p, i) => (i === idx ? { ...p, id: nextId } : p));
+                          });
+                        }}
                         disabled={productosLoading}
                       >
                         <option value="">{productosLoading ? "Cargando..." : "-- Selecciona --"}</option>
@@ -663,15 +729,17 @@ export default function VentaForm({
           if (printing) return;
           setOpenPost(false);
           setPrintError(null);
-
-          // ✅ ahora sí reseteamos para una nueva venta
           resetForm();
         }}
       >
         <div style={{ display: "grid", gap: 12 }}>
           <div style={{ display: "grid", gap: 6 }}>
-            <div><b>ID Venta:</b> {postVentaId ?? "-"}</div>
-            <div><b>Documento:</b> {postTipoDoc === "factura" ? "Factura" : "Boleta"}</div>
+            <div>
+              <b>ID Venta:</b> {postVentaId ?? "-"}
+            </div>
+            <div>
+              <b>Documento:</b> {postTipoDoc === "factura" ? "Factura" : "Boleta"}
+            </div>
           </div>
 
           <label style={{ display: "flex", gap: 10, alignItems: "center" }}>
@@ -701,12 +769,7 @@ export default function VentaForm({
               Cerrar
             </button>
 
-            <button
-              className="md-btn"
-              type="button"
-              onClick={() => imprimir(false)}
-              disabled={printing || !postVentaId}
-            >
+            <button className="md-btn" type="button" onClick={() => imprimir(false)} disabled={printing || !postVentaId}>
               {printing ? "Imprimiendo..." : "Imprimir Boleta"}
             </button>
 
@@ -720,13 +783,9 @@ export default function VentaForm({
                 {printing ? "Imprimiendo..." : "Imprimir Factura"}
               </button>
             )}
-
-
           </div>
         </div>
       </Modal>
-
-
     </div>
   );
 }

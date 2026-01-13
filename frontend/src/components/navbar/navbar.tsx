@@ -8,7 +8,10 @@ export function Navbar() {
   const user = getUser();
   const rol = user?.rol; // "ADMIN" | "OPERADOR" | "LECTOR"
 
-  const canSeeUsuarios = rol === "ADMIN"; // solo admin ve usuarios
+  const canSeeUsuarios = rol === "ADMIN";
+  const canSeeCrearVentas = rol === "ADMIN" || rol === "OPERADOR";
+
+  
   
 
   
@@ -37,12 +40,14 @@ export function Navbar() {
               </NavLink>
             </li>
             
-
-            <li>
-              <NavLink to="/crearventas" className={({ isActive }) => (isActive ? "active" : "")}>
-                Crear Ventas
-              </NavLink>
-            </li>
+            {canSeeCrearVentas && (
+              <li>
+                <NavLink to="/crearventas" className={({ isActive }) => (isActive ? "active" : "")}>
+                  Crear Ventas
+                </NavLink>
+              </li>
+            )}
+            
               
             <li>
               <NavLink to="/ventas" className={({ isActive }) => (isActive ? "active" : "")}>

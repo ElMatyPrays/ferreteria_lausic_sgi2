@@ -30,7 +30,7 @@ export function useClientes(enabled: boolean) {
         rut: p.rut,
         razon_social: p.razon_social,
         tipo_de_compra: p.tipo_de_compra,
-        giro: String(p.giro ?? 0),
+        giro: p.giro,
         direccion: p.direccion,
         comuna: p.comuna,
         ciudad: p.ciudad,

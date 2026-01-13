@@ -21,7 +21,7 @@ function App() {
 
       <Route path="/productos" element={<ProtectedRoute><Productos /></ProtectedRoute>} />
       <Route path="/ventas" element={<ProtectedRoute><Ventas /></ProtectedRoute>} />
-      <Route path="/crearventas" element={<ProtectedRoute><VentaCreatePage /></ProtectedRoute>} />
+      <Route path="/crearventas" element={<ProtectedRoute roles={["ADMIN", "OPERADOR"]}><VentaCreatePage /></ProtectedRoute>} />
       <Route path="/clientes" element={<ProtectedRoute><Clientes /></ProtectedRoute>} />
       <Route path="/usuarios" element={<ProtectedRoute roles={["ADMIN"]}><Usuarios /></ProtectedRoute>} />
     

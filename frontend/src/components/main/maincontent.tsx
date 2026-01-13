@@ -57,7 +57,7 @@ const columnsBySection: Record<Section, Column[]> = {
     { key: "rut", header: "RUT", width: "140px" },
     { key: "razon_social", header: "Razón social", width: "160px" },
     { key: "tipo_de_compra", header: "Tipo de compra", width: "160px" },
-    { key: "giro", header: "Giro", width: "140px", align: "right", numeric: true },
+    { key: "giro", header: "Giro", width: "140px", align: "right"},
     { key: "direccion", header: "Dirección", width: "160px" },
     { key: "comuna", header: "Comuna", width: "160px" },
     { key: "ciudad", header: "Ciudad", width: "160px" },
@@ -77,9 +77,9 @@ const demoRowsBySection: Record<Section, Row[]> = {
   ],
   Ventas: [],
   Clientes: [
-    { rut: "123456789", razon_social: "Cliente 1", tipo_de_compra: "Compra", giro: "200", direccion: "Calle 1", comuna: "Comuna 1", ciudad: "Ciudad 1", contacto: "Contacto 1", tipo_descuento: 0 },
-    { rut: "987654321", razon_social: "Cliente 2", tipo_de_compra: "Compra", giro: "200", direccion: "Calle 2", comuna: "Comuna 2", ciudad: "Ciudad 2", contacto: "Contacto 2", tipo_descuento: 0 },
-    { rut: "876543210", razon_social: "Cliente 3", tipo_de_compra: "Compra", giro: "200", direccion: "Calle 3", comuna: "Comuna 3", ciudad: "Ciudad 3", contacto: "Contacto 3", tipo_descuento: 0 },
+    { rut: "123456789", razon_social: "Cliente 1", tipo_de_compra: "Compra", giro: "Ferretería y materiales de construcción", direccion: "Calle 1", comuna: "Comuna 1", ciudad: "Ciudad 1", contacto: "Contacto 1", tipo_descuento: 0 },
+    { rut: "987654321", razon_social: "Cliente 2", tipo_de_compra: "Compra", giro: "Ferretería y materiales de construcción", direccion: "Calle 2", comuna: "Comuna 2", ciudad: "Ciudad 2", contacto: "Contacto 2", tipo_descuento: 0 },
+    { rut: "876543210", razon_social: "Cliente 3", tipo_de_compra: "Compra", giro: "Ferretería y materiales de construcción", direccion: "Calle 3", comuna: "Comuna 3", ciudad: "Ciudad 3", contacto: "Contacto 3", tipo_descuento: 0 },
   ],
 };
 
@@ -135,8 +135,10 @@ export default function MainContent({ section, venTab: venTabProp, onVenTabChang
   const isOperador = role === "OPERADOR";
   const isReader = role === "LECTOR";
 
-  const canWrite = isAdmin || isOperador;
+  const canWrite = isAdmin ;
   const canDelete = isAdmin;
+  
+
 
   const [venTabState, setVenTabState] = useState<VentasSub>("Ventas");
   const venTab = venTabProp ?? venTabState;
@@ -353,7 +355,6 @@ export default function MainContent({ section, venTab: venTabProp, onVenTabChang
     buildEmptyForm: (cols) => {
       const empty: Row = {};
       cols.forEach((c) => (empty[c.key] = ""));
-      empty.giro = 0;
       empty.tipo_descuento = 0;
       return empty;
     },
@@ -431,7 +432,7 @@ export default function MainContent({ section, venTab: venTabProp, onVenTabChang
   const readOnlyKeysEdit: string[] = [];
   if (idKey) readOnlyKeysEdit.push(idKey);
 
-  const isReadOnly = false;
+  const isReadOnly = isReader || (isOperador && section === "Productos");
 
   const [modal, setModal] = useState<ModalKind>("none");
   const [currentIndex, setCurrentIndex] = useState<number | null>(null);
@@ -545,6 +546,7 @@ export default function MainContent({ section, venTab: venTabProp, onVenTabChang
   const closeModal = () => setModal("none");
 
   const openCreate = () => {
+    if (isReadOnly) return;
     if (active.key === "ventas") {
       // ✅ Crear venta ahora es una página dedicada (no modal)
       navigate("/ventas/crear");
@@ -564,6 +566,7 @@ export default function MainContent({ section, venTab: venTabProp, onVenTabChang
   };
 
   const openEdit = async (idx: number) => {
+    if (isReadOnly) return;
     const row = active.rows[idx];
     setCurrentIndex(idx);
 
@@ -840,7 +843,7 @@ export default function MainContent({ section, venTab: venTabProp, onVenTabChang
         )}
 
         {/* Ventas ahora se crean en una página dedicada (navbar), no desde modal */}
-        {active.create && canWrite && active.key !== "ventas" && (
+        {!isReadOnly && active.create && canWrite && active.key !== "ventas" && active.key !== "lista_ventas" && (
           <button className="mc-btn mc-btn-primary" onClick={openCreate}>
             <FiPlus />
             {`Crear ${section}`}
@@ -848,11 +851,12 @@ export default function MainContent({ section, venTab: venTabProp, onVenTabChang
         )}
 
 
+
         {active.loading && <span style={{ fontSize: 12, opacity: 0.8 }}>Cargando…</span>}
       </div>
     );
   } else if (columns.length > 0) {
-    headerRight = !isReader ? (
+    headerRight = !isReadOnly ? (
       <button className="mc-btn mc-btn-primary" onClick={openCreate}>
         <FiPlus />
         Crear
