@@ -502,123 +502,128 @@ export default function VentaForm({
               </button>
             </div>
 
-            <div style={{ display: "grid", gap: 10 }}>
-              {items.map((it, idx) => {
-                const precio = getUnitPrice(it.id);
-                const subtotal = getSubtotal(it);
+            <div className="venta-items-scroll">
+              <div className="venta-items-grid">
+                {items.map((it, idx) => {
+                  const precio = getUnitPrice(it.id);
+                  const subtotal = getSubtotal(it);
 
-                return (
-                  <div key={idx} className="venta-item-row">
-                    <label style={{ display: "grid", gap: 6 }}>
-                      <span style={{ fontSize: 12, opacity: 0.85 }}>Producto</span>
-                      <select
-                        className="md-input"
-                        value={it.id}
-                        onChange={(e) => {
-                          const nextId = e.target.value;
+                  return (
+                    <div key={idx} className="venta-item-row">
+                      <label style={{ display: "grid", gap: 6 }}>
+                        <span style={{ fontSize: 12, opacity: 0.85 }}>Producto</span>
+                        <select
+                          className="md-input"
+                          value={it.id}
+                          onChange={(e) => {
+                            const nextId = e.target.value;
 
-                          setItems((prev) => {
-                            const prevId = String(prev[idx]?.id || "").trim();
+                            setItems((prev) => {
+                              const prevId = String(prev[idx]?.id || "").trim();
 
-                            // si borra (elige vacío) siempre permitir
-                            if (!nextId) {
-                              return prev.map((p, i) => (i === idx ? { ...p, id: "" } : p));
-                            }
+                              // si borra (elige vacío) siempre permitir
+                              if (!nextId) {
+                                return prev.map((p, i) => (i === idx ? { ...p, id: "" } : p));
+                              }
 
-                            // si no es factura, permitir
-                            if (form.tipo_documento !== "factura") {
+                              // si no es factura, permitir
+                              if (form.tipo_documento !== "factura") {
+                                return prev.map((p, i) => (i === idx ? { ...p, id: nextId } : p));
+                              }
+
+                              // factura: contar distintos si aplicamos el cambio
+                              const setActual = new Set(
+                                prev
+                                  .map((x) => String(x.id || "").trim())
+                                  .filter((id) => id !== "")
+                              );
+
+                              if (prevId) setActual.delete(prevId);
+                              setActual.add(String(nextId));
+
+                              if (setActual.size > MAX_FACTURA_DISTINTOS) {
+                                setNotify("❌ En Factura solo se permiten 9 productos distintos.");
+                                return prev; // no cambiar
+                              }
+
                               return prev.map((p, i) => (i === idx ? { ...p, id: nextId } : p));
-                            }
+                            });
+                          }}
+                          disabled={productosLoading}
+                        >
+                          <option value="">{productosLoading ? "Cargando..." : "-- Selecciona --"}</option>
+                          {productosRows.map((r: any) => (
+                            <option key={String(r.ID_producto)} value={String(r.ID_producto)}>
+                              {String(r.nombre)}
+                            </option>
+                          ))}
+                        </select>
+                      </label>
 
-                            // factura: contar distintos si aplicamos el cambio
-                            const setActual = new Set(
-                              prev
-                                .map((x) => String(x.id || "").trim())
-                                .filter((id) => id !== "")
-                            );
-
-                            if (prevId) setActual.delete(prevId);
-                            setActual.add(String(nextId));
-
-                            if (setActual.size > MAX_FACTURA_DISTINTOS) {
-                              setNotify("❌ En Factura solo se permiten 9 productos distintos.");
-                              return prev; // no cambiar
-                            }
-
-                            return prev.map((p, i) => (i === idx ? { ...p, id: nextId } : p));
-                          });
-                        }}
-                        disabled={productosLoading}
-                      >
-                        <option value="">{productosLoading ? "Cargando..." : "-- Selecciona --"}</option>
-                        {productosRows.map((r: any) => (
-                          <option key={String(r.ID_producto)} value={String(r.ID_producto)}>
-                            {String(r.nombre)}
-                          </option>
-                        ))}
-                      </select>
-                    </label>
-
-                    <label style={{ display: "grid", gap: 6 }}>
-                      <span style={{ fontSize: 12, opacity: 0.85 }}>Código barras</span>
-                      <input
-                        className="md-input"
-                        id={`venta-barcode-${idx}`}
-                        inputMode="numeric"
-                        placeholder="Escanea y presiona Enter"
-                        value={barcodes[idx] ?? ""}
-                        onChange={(e) => setBarcodes((prev) => prev.map((v, i) => (i === idx ? e.target.value : v)))}
-                        onKeyDown={(e) => {
-                          if (e.key === "Enter") {
-                            e.preventDefault();
-                            applyBarcodeToItem(idx);
+                      <label style={{ display: "grid", gap: 6 }}>
+                        <span style={{ fontSize: 12, opacity: 0.85 }}>Código barras</span>
+                        <input
+                          className="md-input"
+                          id={`venta-barcode-${idx}`}
+                          inputMode="numeric"
+                          placeholder="Escanea y presiona Enter"
+                          value={barcodes[idx] ?? ""}
+                          onChange={(e) =>
+                            setBarcodes((prev) => prev.map((v, i) => (i === idx ? e.target.value : v)))
                           }
+                          onKeyDown={(e) => {
+                            if (e.key === "Enter") {
+                              e.preventDefault();
+                              applyBarcodeToItem(idx);
+                            }
+                          }}
+                        />
+                      </label>
+
+                      <label style={{ display: "grid", gap: 6 }}>
+                        <span style={{ fontSize: 12, opacity: 0.85 }}>Cantidad</span>
+                        <input
+                          className="md-input"
+                          id={`venta-cant-${idx}`}
+                          type="number"
+                          min={0.01}
+                          step={0.01}
+                          value={it.cantidad}
+                          onChange={(e) =>
+                            setItems((prev) => prev.map((p, i) => (i === idx ? { ...p, cantidad: e.target.value } : p)))
+                          }
+                        />
+                      </label>
+
+                      <label style={{ display: "grid", gap: 6 }}>
+                        <span style={{ fontSize: 12, opacity: 0.85 }}>Precio</span>
+                        <input className="md-input" value={money(precio)} readOnly />
+                      </label>
+
+                      <label style={{ display: "grid", gap: 6 }}>
+                        <span style={{ fontSize: 12, opacity: 0.85 }}>Subtotal</span>
+                        <input className="md-input" value={money(subtotal)} readOnly />
+                      </label>
+
+                      <button
+                        className="md-btn danger"
+                        type="button"
+                        onClick={() => {
+                          if (items.length === 1) return;
+                          setItems((prev) => prev.filter((_, i) => i !== idx));
+                          setBarcodes((prev) => prev.filter((_, i) => i !== idx));
                         }}
-                      />
-                    </label>
-
-                    <label style={{ display: "grid", gap: 6 }}>
-                      <span style={{ fontSize: 12, opacity: 0.85 }}>Cantidad</span>
-                      <input
-                        className="md-input"
-                        id={`venta-cant-${idx}`}
-                        type="number"
-                        min={0.01}
-                        step={0.01}
-                        value={it.cantidad}
-                        onChange={(e) =>
-                          setItems((prev) => prev.map((p, i) => (i === idx ? { ...p, cantidad: e.target.value } : p)))
-                        }
-                      />
-                    </label>
-
-                    <label style={{ display: "grid", gap: 6 }}>
-                      <span style={{ fontSize: 12, opacity: 0.85 }}>Precio</span>
-                      <input className="md-input" value={money(precio)} readOnly />
-                    </label>
-
-                    <label style={{ display: "grid", gap: 6 }}>
-                      <span style={{ fontSize: 12, opacity: 0.85 }}>Subtotal</span>
-                      <input className="md-input" value={money(subtotal)} readOnly />
-                    </label>
-
-                    <button
-                      className="md-btn danger"
-                      type="button"
-                      onClick={() => {
-                        if (items.length === 1) return;
-                        setItems((prev) => prev.filter((_, i) => i !== idx));
-                        setBarcodes((prev) => prev.filter((_, i) => i !== idx));
-                      }}
-                      title="Eliminar item"
-                      disabled={items.length === 1}
-                    >
-                      ✕
-                    </button>
-                  </div>
-                );
-              })}
+                        title="Eliminar item"
+                        disabled={items.length === 1}
+                      >
+                        ✕
+                      </button>
+                    </div>
+                  );
+                })}
+              </div>
             </div>
+
           </div>
 
           <div className="venta-total">

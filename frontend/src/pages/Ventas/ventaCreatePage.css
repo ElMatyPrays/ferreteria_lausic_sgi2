@@ -1,3 +1,4 @@
+/* src/pages/Ventas/ventaCreatePage.css */
 /* Soporta ambos nombres por si cambiaste clases */
 .venta-page,
 .venta-create-page {
@@ -10,7 +11,7 @@
 
   width: 100%;
   height: 100%;          /* clave: tu app usa contenedor con altura */
-  overflow: auto;        /* clave: como tienes body overflow:hidden */
+  overflow: hidden;       /* clave: como tienes body overflow:hidden */
   padding: 16px 20px;
   box-sizing: border-box;
 }
@@ -20,12 +21,73 @@
   width: 100%;
   max-width: 1300px;
   margin: 0 auto;
+  height: 100%;
+  min-height: 0;
 }
 
-/* En página: que el "modal" no tenga límites de modal */
+/* el card también necesita poder estirarse */
 .venta-page .md-card,
 .venta-create-page .md-card {
   width: 100%;
   max-width: 1300px;
-  max-height: none;      /* mata el 85vh del modal */
+  height: 100%;
+  min-height: 0;
+  max-height: none;
+}
+
+
+/* ============================
+   SCROLL SOLO EN "ITEMS"
+============================ */
+
+/* el card completo debe ser columna y ocupar alto disponible */
+.venta-form-root {
+  display: flex;
+  flex-direction: column;
+  height: 100%;
+  min-height: 0; /* CLAVE */
+}
+
+/* el body del card: ocupa el espacio entre header y footer */
+.venta-form-root .md-body {
+  flex: 1;
+  min-height: 0;      /* CLAVE */
+  overflow: hidden;   /* evita scroll del body */
+}
+
+/* contenedor interno del form */
+.venta-modal {
+  display: flex;
+  flex-direction: column;
+  gap: 16px;
+  height: 100%;
+  min-height: 0; /* CLAVE */
+}
+
+/* bloque de items debe crecer y permitir que su hijo scrollee */
+.venta-items {
+  flex: 1;
+  min-height: 0;     /* CLAVE */
+  display: flex;
+  flex-direction: column;
+  overflow: hidden;  /* scroll lo tendrá .venta-items-scroll */
+}
+
+/* este es el scroll real */
+.venta-items-scroll {
+  flex: 1;
+  min-height: 0;
+  overflow: auto;
+  padding-right: 6px;
+}
+
+/* grilla interna */
+.venta-items-grid {
+  display: grid;
+  gap: 10px;
+}
+
+/* total siempre visible abajo */
+.venta-total {
+  flex: 0 0 auto;
 }

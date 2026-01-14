@@ -50,10 +50,23 @@ AppDataSource.initialize()
     // 🖨️ Agente de impresión (opcional)
     // Levanta el mismo API en un puerto local (loopback) para integraciones de impresión.
     // Para activarlo: define PRINTER_AGENT_PORT=3333 en el .env
+    
+
+
     if (PRINTER_AGENT_PORT && !Number.isNaN(PRINTER_AGENT_PORT)) {
-      app.listen(PRINTER_AGENT_PORT, "127.0.0.1", () => {
-        console.log(`🖨️ Agente de impresión activo en http://localhost:${PRINTER_AGENT_PORT}`);
+      const printerApp = express();
+      printerApp.use(cors());
+      printerApp.use(express.json());
+
+      // Solo printer en el agente local
+      printerApp.use("/api/printer", printerRouter);
+
+      printerApp.listen(PRINTER_AGENT_PORT, "127.0.0.1", () => {
+        console.log(
+          `🖨️ Agente de impresión activo en http://localhost:${PRINTER_AGENT_PORT}`
+        );
       });
     }
+
   })
   .catch((err) => console.error("❌ Error DB:", err));

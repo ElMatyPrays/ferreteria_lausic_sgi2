@@ -133,3 +133,55 @@
     width: 100% !important;
   }
 }
+
+
+/* === Layout para que el scroll sea SOLO en Items === */
+
+.venta-form-root {
+  display: flex;
+  flex-direction: column;
+  height: 100%;
+  min-height: 0; /* IMPORTANTÍSIMO para que overflow funcione en hijos */
+}
+
+.venta-form-root .md-body {
+  flex: 1;
+  min-height: 0;
+  overflow: hidden; /* evita scroll en el body del formulario */
+}
+
+.venta-modal {
+  display: flex;
+  flex-direction: column;
+  gap: 16px;
+  height: 100%;
+  min-height: 0;
+}
+
+/* el bloque items ocupa el espacio restante */
+.venta-items {
+  flex: 1;
+  min-height: 0;
+  display: flex;
+  flex-direction: column;
+  overflow: hidden; /* el scroll lo tendrá el hijo */
+}
+
+/* este es el contenedor scrolleable */
+.venta-items-scroll {
+  flex: 1;
+  min-height: 0;
+  overflow: auto;
+  padding-right: 6px; /* para que no tape el scrollbar */
+}
+
+/* solo estética */
+.venta-items-grid {
+  display: grid;
+  gap: 10px;
+}
+
+/* el total queda siempre visible abajo (fuera del scroll) */
+.venta-total {
+  flex: 0 0 auto;
+}
