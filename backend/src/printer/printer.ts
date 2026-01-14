@@ -1,22 +1,14 @@
 // backend/src/printer/printer.ts
-// Implementación mínima basada en escpos + escpos-usb (ticket térmico por USB).
-// OJO: en Windows a veces necesitas drivers/libusb.
-// En Linux puede requerir permisos udev.
+// Windows + USB Epson TM-P20 SIN módulos nativos:
+// 1) Genera ESC/POS con node-thermal-printer
+// 2) Envía RAW al spooler vía "copy /b" a una impresora compartida \\HOST\SHARE
 
-const escpos = require("escpos");
-const USBAdapter = require("@node-escpos/usb-adapter");
-escpos.USB = USBAdapter;
+import fs from "fs";
+import os from "os";
+import path from "path";
+import { spawn } from "child_process";
 
-/* =======================
-   TIPOS
-======================= */
-
-type TicketItem = {
-  nombre: string;
-  cantidad: number;
-  precio: number;
-  total: number;
-};
+type TicketItem = { nombre: string; cantidad: number; precio: number; total: number };
 
 type ClienteTicket = {
   rut: string;
@@ -28,11 +20,7 @@ type ClienteTicket = {
   contacto?: string;
 };
 
-type TicketResumen = {
-  neto: number;
-  iva: number;
-  total: number;
-};
+type TicketResumen = { neto: number; iva: number; total: number };
 
 type TicketData = {
   id_venta: string | number;
@@ -40,117 +28,127 @@ type TicketData = {
   items: TicketItem[];
   total: number;
   tipo_documento?: "boleta" | "factura" | string;
-  conIva?: boolean;
   resumen?: TicketResumen;
-  cliente?: ClienteTicket; // SOLO para factura
+  cliente?: ClienteTicket;
 };
-
-/* =======================
-   CONFIG
-======================= */
 
 const isMock = String(process.env.PRINTER_MOCK || "").toLowerCase() === "true";
 
-/* =======================
-   PRINT
-======================= */
+function width() {
+  const w = Number(process.env.PRINTER_WIDTH);
+  return Number.isFinite(w) && w > 0 ? w : 32;
+}
+
+function money(n: number) {
+  const v = Math.round(Number(n) || 0);
+  return `$${v.toLocaleString("es-CL")}`;
+}
+
+function getSharePath() {
+  const host = String(process.env.PRINTER_HOST || "localhost").trim() || "localhost";
+  const share = String(process.env.PRINTER_SHARE || "").trim();
+  if (!share) throw new Error("Falta PRINTER_SHARE (ej: TMP20). Debes compartir la impresora en Windows.");
+  // \\localhost\TMP20
+  return `\\\\${host}\\${share}`;
+}
+
+function runCopyBinary(srcFile: string, printerSharePath: string) {
+  return new Promise<void>((resolve, reject) => {
+    // cmd /c copy /b "file" "\\localhost\TMP20"
+    const cmd = `copy /b "${srcFile}" "${printerSharePath}"`;
+    const child = spawn("cmd.exe", ["/c", cmd], { windowsHide: true });
+
+    let stderr = "";
+    child.stderr.on("data", (d) => (stderr += String(d)));
+
+    child.on("exit", (code) => {
+      if (code === 0) return resolve();
+      reject(new Error(`Fallo copy /b (code ${code}). ${stderr || ""}`.trim()));
+    });
+
+    child.on("error", reject);
+  });
+}
 
 export async function imprimirTicket(data: TicketData): Promise<void> {
-  return new Promise((resolve, reject) => {
-    try {
-      /* ========= MOCK ========= */
-      if (isMock) {
-        console.log("🧾 [MOCK PRINT]");
-        console.log(JSON.stringify(data, null, 2));
-        resolve();
-        return;
-      }
+  if (isMock) {
+    console.log("🧾 [MOCK PRINT]");
+    console.log(JSON.stringify(data, null, 2));
+    return;
+  }
 
-      console.log(
-        "[PRINTER] PRINTER_MOCK =",
-        process.env.PRINTER_MOCK,
-        "=> isMock =",
-        isMock
-      );
+  const sharePath = getSharePath();
 
-      const device = new (escpos as any).USB();
-      const printer = new (escpos as any).Printer(device, {
-        encoding: "CP850",
-      });
+  // node-thermal-printer
+  const { printer: ThermalPrinter, types: PrinterTypes, CharacterSet } =
+    require("node-thermal-printer");
 
-      device.open((err: any) => {
-        if (err) return reject(err);
-
-        try {
-          /* ========= HEADER ========= */
-          printer
-            .align("ct")
-            .size(2, 2)
-            .text("FERRETERÍA LAUSIC")
-            .size(1, 1)
-            .text("RUT: 12.345.678-9")
-            .text("Av. Siempre Viva 123")
-            .drawLine()
-            .align("lt")
-            .text(`Documento: ${data.tipo_documento?.toUpperCase() ?? "VENTA"}`)
-            .text(`Venta N°: ${data.id_venta}`)
-            .text(`Fecha: ${data.fecha}`);
-
-          /* ========= CLIENTE (FACTURA) ========= */
-          if (data.tipo_documento === "factura" && data.cliente) {
-            printer
-              .drawLine()
-              .text("DATOS DEL CLIENTE")
-              .text(`RUT: ${data.cliente.rut}`)
-              .text(`Razón Social: ${data.cliente.razon_social}`)
-              .text(`Giro: ${data.cliente.giro}`)
-              .text(`Dirección: ${data.cliente.direccion}`)
-              .text(
-                `${data.cliente.comuna}, 
-                ${data.cliente.ciudad}`
-              );
-
-            if (data.cliente.contacto) {
-              printer.text(`Contacto: ${data.cliente.contacto}`);
-            }
-          }
-
-          /* ========= ITEMS ========= */
-          printer.drawLine();
-
-          (data.items ?? []).forEach((item) => {
-            printer.text(
-              `${item.nombre}\n${item.cantidad} x $${item.precio} = $${item.total}`
-            );
-          });
-
-          /* ========= TOTALES ========= */
-          printer.drawLine().align("rt");
-
-          if (data.resumen) {
-            printer
-              .text(`NETO: $${data.resumen.neto}`)
-              .text(`IVA: $${data.resumen.iva}`)
-              .text(`TOTAL: $${data.resumen.total}`);
-          } else {
-            printer.text(`TOTAL: $${data.total}`);
-          }
-
-          /* ========= FOOTER ========= */
-          printer
-            .drawLine()
-            .align("ct")
-            .text("¡Gracias por su compra!")
-            .cut()
-            .close();
-
-          resolve();
-        } catch (e) {
-          reject(e);
-        }
-      });
-    } catch (e) {
-      reject(e);
-    }
+  const p = new ThermalPrinter({
+    type: PrinterTypes.EPSON,
+    interface: "dummy", // NO se usa (solo generamos comandos)
+    width: width(),
+    characterSet: CharacterSet.PC850_MULTILINGUAL,
+    removeSpecialCharacters: false,
   });
+
+  // Construye ticket
+  p.alignCenter();
+  p.setTextDoubleHeight();
+  p.setTextDoubleWidth();
+  p.println("FERRETERÍA LAUSIC");
+  p.setTextNormal();
+  p.println("RUT: 12.345.678-9");
+  p.println("Av. Siempre Viva 123");
+  p.drawLine();
+
+  p.alignLeft();
+  p.println(`Documento: ${(data.tipo_documento ?? "VENTA").toUpperCase()}`);
+  p.println(`Venta N°: ${data.id_venta}`);
+  p.println(`Fecha: ${data.fecha}`);
+
+  if (String(data.tipo_documento).toLowerCase() === "factura" && data.cliente) {
+    p.drawLine();
+    p.println("DATOS DEL CLIENTE");
+    p.println(`RUT: ${data.cliente.rut}`);
+    p.println(`Razón Social: ${data.cliente.razon_social}`);
+    p.println(`Giro: ${data.cliente.giro}`);
+    p.println(`Dirección: ${data.cliente.direccion}`);
+    p.println(`${data.cliente.comuna}, ${data.cliente.ciudad}`);
+    if (data.cliente.contacto) p.println(`Contacto: ${data.cliente.contacto}`);
+  }
+
+  p.drawLine();
+  for (const it of data.items ?? []) {
+    p.println(it.nombre);
+    p.println(`${it.cantidad} x ${money(it.precio)} = ${money(it.total)}`);
+  }
+
+  p.drawLine();
+  p.alignRight();
+  if (data.resumen) {
+    p.println(`NETO:  ${money(data.resumen.neto)}`);
+    p.println(`IVA:   ${money(data.resumen.iva)}`);
+    p.println(`TOTAL: ${money(data.resumen.total)}`);
+  } else {
+    p.println(`TOTAL: ${money(data.total)}`);
+  }
+
+  p.drawLine();
+  p.alignCenter();
+  p.println("¡Gracias por su compra!");
+  p.newLine();
+  p.cut();
+
+  // Sacamos el buffer RAW de comandos ESC/POS
+  const raw: Buffer = p.getBuffer();
+
+  // Lo escribimos a un archivo temporal y lo mandamos con copy /b
+  const tmpFile = path.join(os.tmpdir(), `ticket_${Date.now()}.bin`);
+  fs.writeFileSync(tmpFile, raw);
+
+  try {
+    await runCopyBinary(tmpFile, sharePath);
+  } finally {
+    try { fs.unlinkSync(tmpFile); } catch {}
+  }
 }
