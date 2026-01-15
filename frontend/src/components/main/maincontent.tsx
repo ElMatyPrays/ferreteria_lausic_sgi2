@@ -50,6 +50,7 @@ const columnsBySection: Record<Section, Column[]> = {
     { key: "proveedor", header: "Proveedor", width: "160px" },
     { key: "precio_compra", header: "Precio compra", width: "140px", align: "right", numeric: true },
     { key: "stock", header: "Stock", width: "100px", align: "right", numeric: true },
+    { key: "unidad_medida", header: "Unidad de Medida", width: "140px", align: "right" },
     { key: "precio_venta", header: "Precio venta", width: "140px", align: "right", numeric: true },
   ],
   Ventas: [],
@@ -222,6 +223,7 @@ export default function MainContent({ section, venTab: venTabProp, onVenTabChang
       empty.precio_compra = 0;
       empty.stock = 0;
       empty.precio_venta = 0;
+      empty.unidad_medida = "unitario"; // ✅ POR DEFECTO
       return empty;
     },
     buildCreatePayload: (form) => ({
@@ -234,6 +236,7 @@ export default function MainContent({ section, venTab: venTabProp, onVenTabChang
       proveedor: String(form.proveedor || ""),
       precio_compra: Number(form.precio_compra || 0),
       stock: Number(form.stock || 0),
+      unidad_medida: String(form.unidad_medida || "unitario"), // ✅ AGREGADO
       precio_venta: Number(form.precio_venta || 0),
     }),
     buildUpdatePayload: (form) => ({
@@ -246,6 +249,7 @@ export default function MainContent({ section, venTab: venTabProp, onVenTabChang
       proveedor: String(form.proveedor || ""),
       precio_compra: Number(form.precio_compra || 0),
       stock: Number(form.stock || 0),
+      unidad_medida: String(form.unidad_medida || "unitario"), // ✅ AGREGADO
       precio_venta: Number(form.precio_venta || 0),
     }),
     create: createProducto,
@@ -886,52 +890,25 @@ export default function MainContent({ section, venTab: venTabProp, onVenTabChang
 
       {!isReadOnly && (
         <>
-          {/* CREATE (ventas ahora se crea en una página dedicada) */}
-          {active.key !== "ventas" && (
-            <Modal
-              open={modal === "create"}
-              title={`Crear en ${section}`}
-              onClose={closeModal}
-              actions={
-                <>
-                  <button className="md-btn" onClick={closeModal}>
-                    Cancelar
-                  </button>
-                  <button className="md-btn primary" onClick={submitCreate}>
-                    Guardar
-                  </button>
-                </>
-              }
-            >
-              <FormDinamico
-                columns={columns}
-                formData={formData}
-                onChange={onChangeField}
-                excludeKeys={active.key === "lista_ventas" ? ["ID_registro_venta", "subtotal"] : undefined}
-                readOnlyKeys={readOnlyKeysCreate}
-                ventasOptions={active.key === "lista_ventas" ? ventasRows : undefined}
-                productosOptions={active.key === "lista_ventas" ? productosRows : undefined}
-              />
-            </Modal>
-          )}
-
-          {/* EDIT */}
+          {/* ELIMINAMOS EL WRAPPER 'active.key !== "ventas"' PARA QUE EL MODAL FUNCIONE EN EDITAR VENTAS */}
+          
           <Modal
-            open={modal === "edit"}
-            title={active.key === "ventas" ? "Editar venta" : `Editar ${section}`}
+            open={modal === "create" || modal === "edit"}
+            title={modal === "create" ? `Crear ${section}` : `Editar ${section}`}
             onClose={closeModal}
-            className={active.key === "ventas" ? "mc-card-lg" : ""}
+            className={active.key === "ventas" ? "mc-card-lg" : ""} // ✅ Ahora esto ya no dará error
             actions={
               <>
                 <button className="md-btn" onClick={closeModal}>
                   Cancelar
                 </button>
-                <button className="md-btn primary" onClick={submitEdit}>
+                <button className="md-btn primary" onClick={modal === "create" ? submitCreate : submitEdit}>
                   Guardar
                 </button>
               </>
             }
           >
+            {/* CASO 1: VENTAS (Ahora sí es accesible para Editar) */}
             {active.key === "ventas" ? (
               <div className="venta-modal">
                 <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr 1fr", gap: 12 }}>
@@ -1085,7 +1062,151 @@ export default function MainContent({ section, venTab: venTabProp, onVenTabChang
                   </div>
                 </div>
               </div>
+            ) : active.key === "productos" ? (
+              /* CASO 2: PRODUCTOS (Formulario Personalizado) */
+              <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: "12px" }}>
+                
+                {/* Fila 1: Identificadores */}
+                <label className="form-group">
+                  <span style={{ fontSize: "12px", opacity: 0.85 }}>SKU</span>
+                  <input 
+                    className="md-input" 
+                    value={String(formData.SKU || "")} 
+                    onChange={(e) => onChangeField("SKU", e.target.value)} 
+                  />
+                </label>
+                <label className="form-group">
+                  <span style={{ fontSize: "12px", opacity: 0.85 }}>Código de Barras</span>
+                  <input 
+                    className="md-input" 
+                    value={String(formData.codigo_barras || "")} 
+                    onChange={(e) => onChangeField("codigo_barras", e.target.value)} 
+                  />
+                </label>
+
+                {/* Fila 2: Info Básica */}
+                <label className="form-group">
+                  <span style={{ fontSize: "12px", opacity: 0.85 }}>Nombre</span>
+                  <input 
+                    className="md-input" 
+                    value={String(formData.nombre || "")} 
+                    onChange={(e) => onChangeField("nombre", e.target.value)} 
+                  />
+                </label>
+                <label className="form-group">
+                  <span style={{ fontSize: "12px", opacity: 0.85 }}>Tipo</span>
+                  <input 
+                    className="md-input" 
+                    value={String(formData.tipo || "")} 
+                    onChange={(e) => onChangeField("tipo", e.target.value)} 
+                  />
+                </label>
+
+                {/* Fila 3: Detalles */}
+                <label className="form-group">
+                  <span style={{ fontSize: "12px", opacity: 0.85 }}>Variante</span>
+                  <input 
+                    className="md-input" 
+                    value={String(formData.variante || "")} 
+                    onChange={(e) => onChangeField("variante", e.target.value)} 
+                  />
+                </label>
+                <label className="form-group">
+                  <span style={{ fontSize: "12px", opacity: 0.85 }}>Marca</span>
+                  <input 
+                    className="md-input" 
+                    value={String(formData.marca || "")} 
+                    onChange={(e) => onChangeField("marca", e.target.value)} 
+                  />
+                </label>
+
+                {/* Fila 4: Proveedor y Compra */}
+                <label className="form-group">
+                  <span style={{ fontSize: "12px", opacity: 0.85 }}>Proveedor</span>
+                  <input 
+                    className="md-input" 
+                    value={String(formData.proveedor || "")} 
+                    onChange={(e) => onChangeField("proveedor", e.target.value)} 
+                  />
+                </label>
+                <label className="form-group">
+                   <span style={{ fontSize: "12px", opacity: 0.85 }}>Precio Compra</span>
+                   {/* ✅ AQUI: Agregamos min="0" y bloqueamos el signo negativo */}
+                   <input 
+                     type="number" 
+                     min="0"
+                     className="md-input" 
+                     value={formData.precio_compra} 
+                     onChange={(e) => onChangeField("precio_compra", e.target.value)}
+                     onKeyDown={(e) => e.key === '-' && e.preventDefault()} 
+                   />
+                </label>
+
+                {/* === LÓGICA DINÁMICA DE UNIDAD === */}
+                
+                {/* 1. SELECT DE UNIDAD DE MEDIDA */}
+                <label className="form-group">
+                  <span style={{ fontSize: "12px", opacity: 0.85 }}>Unidad de Medida</span>
+                  <select 
+                    className="md-input" 
+                    value={String(formData.unidad_medida || "unitario")} 
+                    onChange={(e) => {
+                       const nuevaUnidad = e.target.value;
+                       onChangeField("unidad_medida", nuevaUnidad);
+                       if (nuevaUnidad === 'unitario' && formData.stock) {
+                          onChangeField("stock", Math.floor(Number(formData.stock)));
+                       }
+                    }}
+                  >
+                    <option value="unitario">Unitario</option>
+                    <option value="mt">Metros (mt)</option>
+                    <option value="lt">Litros (lt)</option>
+                  </select>
+                </label>
+
+                {/* 2. INPUT DE STOCK INTELIGENTE */}
+                <label className="form-group">
+                  <span style={{ fontSize: "12px", opacity: 0.85 }}>
+                    Stock {formData.unidad_medida === 'unitario' ? '(Enteros)' : '(Decimales)'}
+                  </span>
+                  {/* ✅ AQUI: Agregamos min="0" y combinamos los bloqueos */}
+                  <input 
+                    type="number" 
+                    min="0"
+                    className="md-input" 
+                    step={formData.unidad_medida === 'unitario' ? "1" : "0.01"}
+                    placeholder={formData.unidad_medida === 'unitario' ? "0" : "0.00"}
+                    value={formData.stock} 
+                    onChange={(e) => onChangeField("stock", e.target.value)} 
+                    onKeyDown={(e) => {
+                      // 1. Bloquear signo negativo siempre
+                      if (e.key === '-') e.preventDefault();
+                      
+                      // 2. Bloquear punto/coma solo si es unitario
+                      if (formData.unidad_medida === 'unitario' && (e.key === '.' || e.key === ',')) {
+                        e.preventDefault();
+                      }
+                    }}
+                  />
+                </label>
+
+                 {/* Precio Venta */}
+                <label className="form-group">
+                   <span style={{ fontSize: "12px", opacity: 0.85 }}>Precio Venta</span>
+                   {/* ✅ AQUI: Agregamos min="0" y bloqueamos el signo negativo */}
+                   <input 
+                     type="number" 
+                     min="0"
+                     className="md-input" 
+                     value={formData.precio_venta} 
+                     onChange={(e) => onChangeField("precio_venta", e.target.value)} 
+                     onKeyDown={(e) => e.key === '-' && e.preventDefault()}
+                   />
+                </label>
+
+              </div>
             ) : (
+              /* CASO 3: DEFAULT (CLIENTES, ETC) */
               <FormDinamico
                 columns={columns}
                 formData={formData}

@@ -24,19 +24,38 @@ export function useProductos(enabled: boolean, filters?: ProductosFilters) {
 
     try {
       const apiData: ProductoDTO[] = await fetchProductos(filters);
-      const rows: Row[] = apiData.map((p) => ({
-        ID_producto: String(p.ID_producto),
-        SKU: p.SKU,
-        codigo_barras: p.codigo_barras,
-        nombre: p.nombre,
-        tipo: p.tipo,
-        variante: p.variante,
-        marca: p.marca,
-        proveedor: p.proveedor,
-        precio_compra: String(p.precio_compra ?? 0),
-        stock: String(p.stock ?? 0),
-        precio_venta: String(p.precio_venta ?? 0),
-      }));
+      
+      const rows: Row[] = apiData.map((p) => {
+        // LÓGICA DE FORMATO DE STOCK
+        const rawStock = Number(p.stock ?? 0);
+        let stockFormateado = "0";
+
+        if (p.unidad_medida === "unitario") {
+          // Si es unitario, mostramos entero (ej: 10)
+          stockFormateado = String(Math.floor(rawStock));
+        } else {
+          // Si es mt o lt, mostramos 2 decimales (ej: 10.50)
+          stockFormateado = rawStock.toFixed(2);
+        }
+
+        return {
+          ID_producto: String(p.ID_producto),
+          SKU: p.SKU,
+          codigo_barras: p.codigo_barras,
+          nombre: p.nombre,
+          tipo: p.tipo,
+          variante: p.variante,
+          marca: p.marca,
+          proveedor: p.proveedor,
+          precio_compra: String(p.precio_compra ?? 0),
+          
+          stock: stockFormateado, // ✅ Usamos el valor formateado
+          unidad_medida: p.unidad_medida, // ✅ Agregamos esto para mostrarlo en la tabla
+          
+          precio_venta: String(p.precio_venta ?? 0),
+        } as unknown as Row; // "as unknown as Row" por si Row no tiene unidad_medida definido aún
+      });
+
       setData(rows);
     } catch (err: any) {
       console.error("Error cargando productos:", err);

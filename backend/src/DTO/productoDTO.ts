@@ -8,6 +8,7 @@ export interface CreateProductoDTO {
   proveedor: string;
   precio_compra: number;
   stock: number;
+  unidad_medida: string;
   precio_venta: number;
 }
 export type UpdateProductoDTO = Partial<CreateProductoDTO>;

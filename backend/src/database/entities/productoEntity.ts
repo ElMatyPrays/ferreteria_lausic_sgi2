@@ -3,6 +3,14 @@
 import { Entity, PrimaryGeneratedColumn, Column, OneToMany } from "typeorm";
 import { Registro_ventaEntity } from "./registro_ventaEntity";
 
+
+export enum UnidadMedida {
+  MT = "mt",
+  LT = "lt",
+  UNITARIO = "unitario",
+}
+
+
 @Entity({ name: "producto" })
 export class ProductoEntity {
   @PrimaryGeneratedColumn()
@@ -34,6 +42,10 @@ export class ProductoEntity {
 
   @Column("int", { nullable: false })
   stock: number;
+
+  @Column({ type: "enum", enum: UnidadMedida })
+  unidad_medida!: UnidadMedida;
+
 
   @Column("int", { nullable: false })
   precio_venta: number;

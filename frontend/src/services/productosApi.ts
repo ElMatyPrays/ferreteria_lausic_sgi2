@@ -4,6 +4,10 @@ import { apiFetch } from "./apiFetch";
 /* =========================
    TIPOS (tabla productos)
    ========================= */
+
+// Definimos los valores posibles para evitar errores
+export type UnidadMedidaType = "mt" | "lt" | "unitario";
+
 export type ProductoDTO = {
   ID_producto: number;
   SKU: string;
@@ -15,6 +19,7 @@ export type ProductoDTO = {
   proveedor: string;
   precio_compra: number;
   stock: number;
+  unidad_medida: UnidadMedidaType; // ✅ Corregido el typo (antes unidao_medida)
   precio_venta: number;
 };
 

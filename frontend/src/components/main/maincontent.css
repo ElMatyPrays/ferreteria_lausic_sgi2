@@ -283,3 +283,13 @@
 }
 
 
+
+.form-group {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+}
+.form-group span {
+  font-size: 12px;
+  opacity: 0.85;
+}

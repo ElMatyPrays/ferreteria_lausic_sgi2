@@ -1,5 +1,6 @@
+// src/services/producto_service.ts
 import { AppDataSource } from "../database/dbORM";
-import { ProductoEntity } from "../database/entities/productoEntity";
+import { ProductoEntity, UnidadMedida } from "../database/entities/productoEntity";
 import type { CreateProductoDTO, UpdateProductoDTO } from "../DTO/productoDTO";
 
 export class ProductosService {
@@ -7,10 +8,23 @@ export class ProductosService {
     return AppDataSource.getRepository(ProductoEntity);
   }
 
+  // 👇 1. MÉTODO PRIVADO PARA VALIDAR LA REGLA
+  private validarReglaStock(stock: number, unidad: UnidadMedida) {
+    // Si la unidad es UNITARIO y el número NO es entero (tiene decimales)
+    if (unidad === UnidadMedida.UNITARIO && !Number.isInteger(stock)) {
+      throw new Error(`El stock ${stock} no es válido para unidad 'Unitario'. Debe ser un número entero.`);
+    }
+    // Nota: Si es MT o LT, no hacemos nada, porque aceptan tanto enteros como decimales.
+  }
+
   async create(dto: CreateProductoDTO) {
     if (!dto.SKU?.trim()) throw new Error("SKU es requerido");
     if (!dto.codigo_barras?.trim()) throw new Error("codigo_barras es requerido");
     if (!dto.nombre?.trim()) throw new Error("nombre es requerido");
+
+    // 👇 2. VALIDAMOS ANTES DE CREAR
+    // Convertimos el string del DTO a tipo UnidadMedida para la validación
+    this.validarReglaStock(dto.stock, dto.unidad_medida as UnidadMedida);
 
     const entity = this.repo().create({
       SKU: dto.SKU.trim(),
@@ -22,6 +36,7 @@ export class ProductosService {
       proveedor: dto.proveedor?.trim() ?? "",
       precio_compra: dto.precio_compra,
       stock: dto.stock,
+      unidad_medida: dto.unidad_medida as UnidadMedida,
       precio_venta: dto.precio_venta,
     });
 
@@ -32,7 +47,6 @@ export class ProductosService {
     const q = opts?.q?.trim();
 
     if (!q) {
-      // ✅ lo nuevo queda abajo
       return await this.repo().find({ order: { ID_producto: "ASC" } });
     }
 
@@ -41,7 +55,6 @@ export class ProductosService {
       .where("p.nombre LIKE :q", { q: `%${q}%` })
       .orWhere("p.SKU LIKE :q", { q: `%${q}%` })
       .orWhere("p.codigo_barras LIKE :q", { q: `%${q}%` })
-      // ✅ lo nuevo queda abajo incluso con búsqueda
       .orderBy("p.ID_producto", "ASC")
       .getMany();
   }
@@ -55,6 +68,20 @@ export class ProductosService {
   async update(id: number, dto: UpdateProductoDTO) {
     const item = await this.findById(id);
 
+    // 👇 3. LÓGICA ESPECIAL PARA UPDATE
+    // Tenemos que saber cómo quedaría el producto final para validarlo.
+    // Si en el DTO viene un stock nuevo, usamos ese; si no, usamos el que ya tenía el item.
+    const stockFinal = dto.stock !== undefined ? dto.stock : item.stock;
+    
+    // Lo mismo para la unidad.
+    const unidadFinal = dto.unidad_medida !== undefined 
+        ? (dto.unidad_medida as UnidadMedida) 
+        : item.unidad_medida;
+
+    // Validamos la combinación final
+    this.validarReglaStock(stockFinal, unidadFinal);
+
+    // Asignación de valores
     if (dto.SKU !== undefined) item.SKU = dto.SKU.trim();
     if (dto.codigo_barras !== undefined) item.codigo_barras = dto.codigo_barras.trim();
     if (dto.nombre !== undefined) item.nombre = dto.nombre.trim();
@@ -63,7 +90,11 @@ export class ProductosService {
     if (dto.marca !== undefined) item.marca = dto.marca.trim();
     if (dto.proveedor !== undefined) item.proveedor = dto.proveedor.trim();
     if (dto.precio_compra !== undefined) item.precio_compra = dto.precio_compra;
+    
+    // Estos dos ya están validados arriba, solo asignamos
     if (dto.stock !== undefined) item.stock = dto.stock;
+    if (dto.unidad_medida !== undefined) item.unidad_medida = dto.unidad_medida as UnidadMedida;
+    
     if (dto.precio_venta !== undefined) item.precio_venta = dto.precio_venta;
 
     return await this.repo().save(item);
