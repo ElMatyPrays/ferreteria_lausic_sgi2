@@ -5,13 +5,12 @@ USE ferreteria_lausic_db;
 CREATE TABLE usuario(
     ID_usuario INT NOT NULL PRIMARY KEY AUTO_INCREMENT UNIQUE,
     email VARCHAR(255) NOT NULL UNIQUE,
-    nombre VARCHAR(120) NOT NULL DEFAULT 0,
+    nombre VARCHAR(120) NOT NULL DEFAULT '',
     passwrd VARCHAR(255) NOT NULL,
     rol TINYINT NOT NULL,
     activo TINYINT(1) NOT NULL DEFAULT 1,
     created_at DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP,
-    updated_at DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
-    UNIQUE KEY uq_usuario_email (email)
+    updated_at DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP
 );
 
 CREATE TABLE producto(
@@ -20,11 +19,12 @@ CREATE TABLE producto(
     codigo_barras VARCHAR(255) NOT NULL UNIQUE,
     nombre VARCHAR(255) NOT NULL,
     tipo VARCHAR(255) NOT NULL,
-    variante VARCHAR(255) NOT NULL DEFAULT 0,
-    marca VARCHAR(255) NOT NULL DEFAULT 0,
-    proveedor VARCHAR(255) NOT NULL DEFAULT 0,
+    variante VARCHAR(255) NOT NULL DEFAULT '0',
+    marca VARCHAR(255) NOT NULL DEFAULT '0',
+    proveedor VARCHAR(255) NOT NULL DEFAULT '0',
     precio_compra INT NOT NULL DEFAULT 0,
-    stock INT NOT NULL DEFAULT 0,
+    stock DECIMAL(10,2) NOT NULL DEFAULT 0.00,
+    unidad_medida ENUM('mt','lt','unitario') NOT NULL,
     precio_venta INT NOT NULL DEFAULT 0
 );
 
@@ -37,16 +37,18 @@ CREATE TABLE cliente(
     direccion VARCHAR(255) NOT NULL,
     comuna VARCHAR(255) NOT NULL,
     ciudad VARCHAR(255) NOT NULL,
-    contacto VARCHAR(255) NOT NULL DEFAULT 0,
+    contacto VARCHAR(255) NOT NULL DEFAULT '0',
     tipo_descuento TINYINT(3) NOT NULL
 );
 
 CREATE TABLE venta(
     ID_venta INT NOT NULL PRIMARY KEY AUTO_INCREMENT UNIQUE,
-    ID_cliente INT,
+    ID_cliente INT DEFAULT NULL,
     total INT NOT NULL DEFAULT 0,
     fecha DATETIME NOT NULL,
-    estado_pago BOOLEAN NOT NULL DEFAULT FALSE
+    estado_pago BOOLEAN NOT NULL DEFAULT FALSE,
+    tipo_documento ENUM('boleta','factura') NOT NULL DEFAULT 'boleta',
+    modo_iva ENUM('incluye_iva','neto') NOT NULL DEFAULT 'incluye_iva'
 );
 
 CREATE TABLE registro_venta(
