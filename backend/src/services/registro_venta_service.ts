@@ -115,8 +115,11 @@ export class RegistroVentaService {
     if (q.ID_venta != null) qb.andWhere("rv.ID_venta = :idv", { idv: Number(q.ID_venta) });
     if (q.ID_producto != null) qb.andWhere("rv.ID_producto = :idp", { idp: Number(q.ID_producto) });
 
-    // ✅ orden “natural” (antiguo arriba, nuevo abajo)
-    qb.orderBy("rv.ID_venta", "ASC").addOrderBy("rv.ID_registro_venta", "ASC");
+   
+    qb.orderBy("rv.ID_venta", "DESC").addOrderBy("rv.ID_registro_venta", "DESC");
+
+    
+
 
     return await qb.getMany();
   }

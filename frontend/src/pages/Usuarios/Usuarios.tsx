@@ -117,6 +117,7 @@ export default function Usuarios() {
                 <div className="usuarios-field">
                   <label>Nombre</label>
                   <input
+                    required
                     value={form.nombre}
                     onChange={(e) => setForm({ ...form, nombre: e.target.value })}
                     placeholder="Ej: Juan Pérez"
@@ -126,6 +127,7 @@ export default function Usuarios() {
                 <div className="usuarios-field">
                   <label>Email</label>
                   <input
+                    required
                     type="email"
                     value={form.email}
                     onChange={(e) => setForm({ ...form, email: e.target.value })}
@@ -136,6 +138,7 @@ export default function Usuarios() {
                 <div className="usuarios-field">
                   <label>Contraseña</label>
                   <input
+                    required
                     type="password"
                     value={form.password}
                     onChange={(e) => setForm({ ...form, password: e.target.value })}

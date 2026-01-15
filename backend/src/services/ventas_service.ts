@@ -79,7 +79,8 @@ export class VentasService {
       }
     }
 
-    qb.orderBy("v.fecha", "ASC").addOrderBy("v.ID_venta", "ASC");
+    qb.orderBy("v.fecha", "DESC").addOrderBy("v.ID_venta", "DESC");
+
     return await qb.getMany();
   }
 

@@ -63,7 +63,6 @@ const columnsBySection: Record<Section, Column[]> = {
     { key: "comuna", header: "Comuna", width: "160px" },
     { key: "ciudad", header: "Ciudad", width: "160px" },
     { key: "contacto", header: "Contacto", width: "160px" },
-    { key: "tipo_descuento", header: "Tipo descuento", width: "160px" },
   ],
 };
 
@@ -432,7 +431,7 @@ export default function MainContent({ section, venTab: venTabProp, onVenTabChang
   const displayRows: Row[] = active.rows;
   const idKey = useMemo(() => active.idKey ?? columns[0]?.key, [active.idKey, columns]);
 
-  const readOnlyKeysCreate: string[] = [];
+  //const readOnlyKeysCreate: string[] = [];
   const readOnlyKeysEdit: string[] = [];
   if (idKey) readOnlyKeysEdit.push(idKey);
 

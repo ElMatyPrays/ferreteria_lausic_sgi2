@@ -6,12 +6,10 @@ import { useVentas } from "../../../hooks/useVentas";
 import Modal from "../../modals/Modal";
 import "./VentaForm.css";
 
-import { apiFetch } from "../../../services/apiFetch";
-
 type Props = {
   mode?: "create";
   onCancel?: () => void;
-  onSuccess?: () => void;
+  onSuccess?: () => void; // ✅ Esto es lo que usaremos para redirigir
   hideHeader?: boolean;
   autoFocusBarcode?: boolean;
 };
@@ -26,6 +24,7 @@ const EMPTY_ITEM: VentaItemUI = { id: "", cantidad: "1" };
 export default function VentaForm({
   mode = "create",
   onCancel,
+  onSuccess,
   hideHeader,
   autoFocusBarcode = true,
 }: Props) {
@@ -33,15 +32,8 @@ export default function VentaForm({
   const { data: clientesRows, loading: clientesLoading } = useClientes(true);
   const { createWithItems: createVentaWithItems } = useVentas(true);
 
-  const [openPost, setOpenPost] = useState(false);
-  const [postVentaId, setPostVentaId] = useState<number | null>(null);
-  const [postTipoDoc, setPostTipoDoc] = useState<"boleta" | "factura">("boleta");
-  const [postConIva, setPostConIva] = useState(false);
-  const [printing, setPrinting] = useState(false);
-  const [printError, setPrintError] = useState<string | null>(null);
-
+  // Estados de notificación y error
   const [notify, setNotify] = useState<string>("");
-
   const [openConfirm, setOpenConfirm] = useState(false);
   const [confirmError, setConfirmError] = useState<string | null>(null);
   const [saving, setSaving] = useState(false);
@@ -64,7 +56,7 @@ export default function VentaForm({
   const [barcodes, setBarcodes] = useState<string[]>([""]);
 
   /* =======================
-     LIMITE FACTURA (9 distintos)
+      LIMITE FACTURA (9 distintos)
   ======================= */
   const MAX_FACTURA_DISTINTOS = 9;
   const isFactura = form.tipo_documento === "factura";
@@ -79,7 +71,7 @@ export default function VentaForm({
   }, [items]);
 
   /* =======================
-     Effects
+      Effects
   ======================= */
   // asegura longitudes
   useEffect(() => {
@@ -105,7 +97,7 @@ export default function VentaForm({
   }, [autoFocusBarcode, items.length]);
 
   /* =======================
-     Helpers
+      Helpers
   ======================= */
   const round2 = (n: number) => Math.round(n * 100) / 100;
 
@@ -207,23 +199,6 @@ export default function VentaForm({
     focusBarcode(idx);
   };
 
-  const resetForm = () => {
-    setNotify("");
-    setConfirmError(null);
-    setOpenConfirm(false);
-
-    setForm({
-      fecha: new Date().toISOString().slice(0, 10),
-      estado_pago: "false",
-      ID_cliente: "",
-      tipo_documento: "boleta",
-      modo_iva: "incluye_iva",
-    });
-
-    setItems([{ ...EMPTY_ITEM }]);
-    setBarcodes([""]);
-  };
-
   // ✅ Construye payload + valida
   const buildPayload = () => {
     if (mode !== "create") throw new Error("Modo inválido");
@@ -283,6 +258,7 @@ export default function VentaForm({
     }
   };
 
+  // 🔴 AQUÍ ESTÁ EL CAMBIO IMPORTANTE
   const handleConfirmCreate = async () => {
     setSaving(true);
     setConfirmError(null);
@@ -291,17 +267,16 @@ export default function VentaForm({
     try {
       const payload = buildPayload();
 
-      const created = await createVentaWithItems(payload);
+      // Creamos la venta
+      await createVentaWithItems(payload);
 
-      const id = Number((created as any)?.ID_venta ?? (created as any)?.venta?.ID_venta);
-      if (!id) throw new Error("No pude obtener el ID de la venta creada");
-
-      setPostVentaId(id);
-      setPostTipoDoc(payload.tipo_documento ?? "boleta");
-      setPostConIva(payload.tipo_documento === "factura");
-
+      // Cerramos el modal de confirmación
       setOpenConfirm(false);
-      setOpenPost(true);
+
+      // ✅ Redirigimos INMEDIATAMENTE al home (o donde indique onSuccess)
+      if (onSuccess) {
+        onSuccess();
+      }
     } catch (err: any) {
       console.error(err);
       setConfirmError(err?.message || "Error al crear venta");
@@ -310,47 +285,15 @@ export default function VentaForm({
     }
   };
 
-  const imprimir = async (conIvaOverride?: boolean) => {
-    if (!postVentaId) return;
-
-    const conIvaFinal = typeof conIvaOverride === "boolean" ? conIvaOverride : postConIva;
-
-    setPrinting(true);
-    setPrintError(null);
-
-    try {
-      const r = await apiFetch("/api/printer/print", {
-        method: "POST",
-        body: JSON.stringify({
-          id_venta: postVentaId,
-          conIva: conIvaFinal,
-        }),
-      });
-
-      const data = await r.json().catch(() => ({}));
-      if (!r.ok) throw new Error(data?.error || "Error al imprimir");
-
-      setNotify("✅ Enviado a impresión.");
-    } catch (e: any) {
-      console.error("[PRINT] error:", e);
-      setPrintError(e?.message || "Error al imprimir");
-    } finally {
-      setPrinting(false);
-    }
-  };
-
   // ✅ Resumen para el modal
   const resumen = useMemo(() => {
     const documento = form.tipo_documento === "factura" ? "Factura" : "Boleta";
     const estado = form.estado_pago === "true" || form.estado_pago === "1" ? "Pagada" : "Pendiente";
 
-    const cliente =
+    const clienteData =
       form.tipo_documento === "factura"
-        ? (() => {
-            const c = clientesRows.find((x: any) => String(x.ID_cliente) === String(form.ID_cliente));
-            return c ? `${String(c.razon_social)} (${String(c.rut)})` : "No seleccionado";
-          })()
-        : "Sin cliente";
+        ? clientesRows.find((x: any) => String(x.ID_cliente) === String(form.ID_cliente)) || null
+        : null;
 
     const itemsResumen = items
       .filter((it) => String(it.id || "").trim() !== "")
@@ -363,7 +306,7 @@ export default function VentaForm({
         return { nombre, cantidad: it.cantidad, precio, subtotal };
       });
 
-    return { documento, fecha: form.fecha, estado, cliente, items: itemsResumen, total };
+    return { documento, fecha: form.fecha, estado, clienteData, items: itemsResumen, total };
   }, [form, items, total, clientesRows, productosRows]);
 
   return (
@@ -521,17 +464,14 @@ export default function VentaForm({
                             setItems((prev) => {
                               const prevId = String(prev[idx]?.id || "").trim();
 
-                              // si borra (elige vacío) siempre permitir
                               if (!nextId) {
                                 return prev.map((p, i) => (i === idx ? { ...p, id: "" } : p));
                               }
 
-                              // si no es factura, permitir
                               if (form.tipo_documento !== "factura") {
                                 return prev.map((p, i) => (i === idx ? { ...p, id: nextId } : p));
                               }
 
-                              // factura: contar distintos si aplicamos el cambio
                               const setActual = new Set(
                                 prev
                                   .map((x) => String(x.id || "").trim())
@@ -543,7 +483,7 @@ export default function VentaForm({
 
                               if (setActual.size > MAX_FACTURA_DISTINTOS) {
                                 setNotify("❌ En Factura solo se permiten 9 productos distintos.");
-                                return prev; // no cambiar
+                                return prev;
                               }
 
                               return prev.map((p, i) => (i === idx ? { ...p, id: nextId } : p));
@@ -655,26 +595,57 @@ export default function VentaForm({
           setOpenConfirm(false);
         }}
       >
-        <div style={{ display: "grid", gap: 12 }}>
-          <div style={{ display: "grid", gap: 6 }}>
-            <div>
-              <b>Documento:</b> {resumen.documento}
-            </div>
-            <div>
-              <b>Fecha:</b> {resumen.fecha}
-            </div>
-            <div>
-              <b>Estado:</b> {resumen.estado}
-            </div>
-            <div>
-              <b>Cliente:</b> {resumen.cliente}
-            </div>
+        <div style={{ display: "flex", flexDirection: "column", gap: 12, height: "100%", overflow: "hidden" }}>
+          
+          <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 10 }}>
+            <div><b>Doc:</b> {resumen.documento}</div>
+            <div><b>Fecha:</b> {resumen.fecha}</div>
+            <div><b>Estado:</b> {resumen.estado}</div>
           </div>
 
-          <div style={{ borderTop: "1px solid rgba(255,255,255,.08)", paddingTop: 10 }}>
+          <div style={{ background: "rgba(255,255,255,.05)", padding: 10, borderRadius: 8 }}>
+            <div style={{ fontSize: 14, fontWeight: "bold", marginBottom: 6, textTransform: "uppercase", opacity: 0.7 }}>
+              Datos del Cliente
+            </div>
+            {resumen.clienteData ? (
+              <div style={{ display: "grid", gap: 4, fontSize: 13 }}>
+                <div><b>Razón Social:</b> {resumen.clienteData.razon_social}</div>
+                <div><b>RUT:</b> {resumen.clienteData.rut}</div>
+                <div><b>Giro:</b> {resumen.clienteData.giro || "-"}</div>
+                <div><b>Dirección:</b> {resumen.clienteData.direccion || "-"}</div>
+                <div style={{ display: "flex", gap: 10 }}>
+                  <span><b>Ciudad:</b> {resumen.clienteData.ciudad || "-"}</span>
+                  <span><b>Comuna:</b> {resumen.clienteData.comuna || "-"}</span>
+                </div>
+                <div><b>Contacto:</b> {resumen.clienteData.contacto || "-"}</div>
+                <div><b>Tipo Compra:</b> {resumen.clienteData.tipo_de_compra || "-"}</div>
+              </div>
+            ) : (
+              <div style={{ fontSize: 13, opacity: 0.6 }}>Sin cliente seleccionado (Boleta)</div>
+            )}
+          </div>
+
+          <div style={{ 
+            borderTop: "1px solid rgba(255,255,255,.08)", 
+            paddingTop: 10, 
+            display: "flex", 
+            flexDirection: "column", 
+            flex: 1, 
+            minHeight: 0 
+          }}>
             <b>Items</b>
 
-            <div style={{ display: "grid", gap: 8, marginTop: 10, maxHeight: 280, overflow: "auto" }}>
+            <div style={{ 
+              display: "grid", 
+              gap: 8, 
+              marginTop: 10, 
+              overflowY: "auto", 
+              flex: 1, 
+              paddingRight: 4,
+              // 👇 ESTO ES LO NUEVO:
+              alignContent: "start", // Fuerza a los items a irse hacia arriba
+              gridAutoRows: "max-content" // Asegura que cada fila tenga la altura de su contenido
+            }}>
               {resumen.items.map((it, idx) => (
                 <div
                   key={idx}
@@ -686,6 +657,7 @@ export default function VentaForm({
                     padding: 10,
                     borderRadius: 10,
                     background: "rgba(255,255,255,.04)",
+                    minHeight: "50px" // 👇 Opcional: Altura mínima para que se vean uniformes
                   }}
                 >
                   <div>
@@ -727,70 +699,7 @@ export default function VentaForm({
         </div>
       </Modal>
 
-      <Modal
-        open={openPost}
-        title="Venta creada"
-        onClose={() => {
-          if (printing) return;
-          setOpenPost(false);
-          setPrintError(null);
-          resetForm();
-        }}
-      >
-        <div style={{ display: "grid", gap: 12 }}>
-          <div style={{ display: "grid", gap: 6 }}>
-            <div>
-              <b>ID Venta:</b> {postVentaId ?? "-"}
-            </div>
-            <div>
-              <b>Documento:</b> {postTipoDoc === "factura" ? "Factura" : "Boleta"}
-            </div>
-          </div>
-
-          <label style={{ display: "flex", gap: 10, alignItems: "center" }}>
-            <input
-              type="checkbox"
-              checked={postConIva}
-              onChange={(e) => setPostConIva(e.target.checked)}
-              disabled={printing}
-            />
-            <span>Mostrar IVA (desglose neto/IVA)</span>
-          </label>
-
-          {printError && <div style={{ color: "#ff6b6b", fontSize: 13 }}>{printError}</div>}
-
-          <div style={{ display: "flex", justifyContent: "flex-end", gap: 10 }}>
-            <button
-              className="md-btn"
-              type="button"
-              onClick={() => {
-                if (printing) return;
-                setOpenPost(false);
-                setPrintError(null);
-                resetForm();
-              }}
-              disabled={printing}
-            >
-              Cerrar
-            </button>
-
-            <button className="md-btn" type="button" onClick={() => imprimir(false)} disabled={printing || !postVentaId}>
-              {printing ? "Imprimiendo..." : "Imprimir Boleta"}
-            </button>
-
-            {postTipoDoc === "factura" && (
-              <button
-                className="md-btn primary"
-                type="button"
-                onClick={() => imprimir(true)}
-                disabled={printing || !postVentaId}
-              >
-                {printing ? "Imprimiendo..." : "Imprimir Factura"}
-              </button>
-            )}
-          </div>
-        </div>
-      </Modal>
+      {/* Se eliminó el Modal de "Venta Creada" */}
     </div>
   );
 }

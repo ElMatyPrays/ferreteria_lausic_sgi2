@@ -1,3 +1,4 @@
+// src/services/usuarios_service.ts
 import bcrypt from "bcrypt";
 import { AppDataSource } from "../database/dbORM";
 import { UsuarioEntity, RolUsuario } from "../database/entities/usuarioEntity";
@@ -34,12 +35,22 @@ export class UsuariosService {
   }
 
   async create(input: {
-    email: string;
-    nombre: string;
-    password: string;
-    rol?: RolUsuario;
-    activo?: boolean;
+   email: string;
+   nombre: string;
+   password: string;
+   rol?: RolUsuario;
+   activo?: boolean;
   }): Promise<UsuarioSafe> {
+
+    // --- 🔴 VALIDACIÓN NUEVA (INICIO) ---
+    if (!input.email || !input.email.trim()) {
+      throw new Error("El email es obligatorio");
+    }
+    if (!input.password || !input.password.trim()) {
+      throw new Error("La contraseña es obligatoria");
+    }
+    // --- 🔴 VALIDACIÓN NUEVA (FIN) ---
+
     const email = input.email.trim().toLowerCase();
 
     const exists = await this.repo.findOne({ where: { email } });

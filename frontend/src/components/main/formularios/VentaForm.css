@@ -145,16 +145,28 @@
 }
 
 .venta-form-root .md-body {
+  /* Propiedades existentes */
+  padding: 16px !important;
+  
+  /* AGREGA ESTO: */
+  display: flex !important;
+  flex-direction: column !important;
+  
+  /* Mantén lo que ya tenías para el overflow si es necesario, 
+     pero flex controlará el layout mejor */
+  overflow: hidden !important; 
   flex: 1;
   min-height: 0;
-  overflow: hidden; /* evita scroll en el body del formulario */
 }
-
 .venta-modal {
   display: flex;
   flex-direction: column;
   gap: 16px;
-  height: 100%;
+  
+  /* CAMBIA ESTO: */
+  /* height: 100%;  <-- BORRA o COMENTA ESTA LÍNEA */
+  flex: 1;       /* <-- AGREGA ESTA LÍNEA */
+  
   min-height: 0;
 }
 

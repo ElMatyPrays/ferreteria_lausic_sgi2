@@ -1,3 +1,4 @@
+// src/database/entities/usuarioEntity.ts
 import {
   Entity,
   PrimaryGeneratedColumn,
