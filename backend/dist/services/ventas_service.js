@@ -8,10 +8,8 @@ const registro_ventaEntity_1 = require("../database/entities/registro_ventaEntit
 const productoEntity_1 = require("../database/entities/productoEntity");
 class VentasService {
     normalizeIdCliente(v) {
-        // undefined = no venía en el body => no tocar
         if (v === undefined)
             return undefined;
-        // null = explícitamente quitar cliente
         if (v === null || v === "")
             return null;
         const n = Number(v);
@@ -21,7 +19,6 @@ class VentasService {
     }
     async recalcTotalFromItems(idVenta) {
         const regRepo = dbORM_1.AppDataSource.getRepository(registro_ventaEntity_1.Registro_ventaEntity);
-        // suma de subtotales de la venta
         const row = await regRepo
             .createQueryBuilder("rv")
             .select("COALESCE(SUM(rv.subtotal), 0)", "total")
@@ -49,8 +46,6 @@ class VentasService {
         const qb = this.repo().createQueryBuilder("v");
         if (q.includeItems) {
             qb.leftJoinAndSelect("v.registroVentas", "rv");
-            // si quieres incluir producto:
-            // qb.leftJoinAndSelect("rv.producto", "p");
         }
         if (typeof q.estado_pago === "boolean") {
             qb.andWhere("v.estado_pago = :estado", { estado: q.estado_pago ? 1 : 0 });
@@ -63,10 +58,12 @@ class VentasService {
             const term = q.q.trim();
             const asNum = Number(term);
             if (!Number.isNaN(asNum)) {
-                qb.andWhere("(v.ID_venta = :id OR v.total = :total)", { id: asNum, total: asNum });
+                qb.andWhere("(v.ID_venta = :id OR v.total = :total)", {
+                    id: asNum,
+                    total: asNum,
+                });
             }
         }
-        // ✅ orden natural: antiguo arriba, nuevo abajo
         qb.orderBy("v.fecha", "ASC").addOrderBy("v.ID_venta", "ASC");
         return await qb.getMany();
     }
@@ -89,14 +86,13 @@ class VentasService {
     }
     async update(id, dto) {
         const venta = await this.findById(id, false);
-        // ✅ actualizar ID_cliente si viene
         const idClienteNorm = this.normalizeIdCliente(dto.ID_cliente);
         if (idClienteNorm !== undefined) {
-            venta.ID_cliente = idClienteNorm; // number | null
+            venta.ID_cliente = idClienteNorm;
         }
-        const tieneItems = await dbORM_1.AppDataSource.getRepository(registro_ventaEntity_1.Registro_ventaEntity).exist({
-            where: { ID_venta: id },
-        });
+        const tieneItems = await dbORM_1.AppDataSource
+            .getRepository(registro_ventaEntity_1.Registro_ventaEntity)
+            .exist({ where: { ID_venta: id } });
         if (dto.fecha != null)
             venta.fecha = new Date(dto.fecha);
         if (dto.estado_pago != null)
@@ -104,44 +100,48 @@ class VentasService {
         if (tieneItems) {
             venta.total = await this.recalcTotalFromItems(id);
         }
-        else {
-            if (dto.total != null) {
-                const t = Number(dto.total);
-                if (Number.isNaN(t))
-                    throw new Error("total inválido");
-                if (t < 0)
-                    throw new Error("total no puede ser negativo");
-                venta.total = t;
-            }
+        else if (dto.total != null) {
+            const t = Number(dto.total);
+            if (Number.isNaN(t))
+                throw new Error("total inválido");
+            if (t < 0)
+                throw new Error("total no puede ser negativo");
+            venta.total = t;
         }
         return await this.repo().save(venta);
     }
     async remove(id) {
         const venta = await this.findById(id, false);
-        // 🚫 regla de negocio: no permitir borrar pagadas
         if (venta.estado_pago === true) {
             throw new Error("No se puede eliminar una venta pagada");
         }
-        await this.repo().remove(venta); // CASCADE borra registros
+        await this.repo().remove(venta);
         return { ok: true };
     }
     /**
-     * ✅ Crea una venta y sus items, y DESCUNTA STOCK.
-     * - total/subtotales se calculan con precio_venta
-     * - valida existencia + stock suficiente
-     * - transacción: si falla algo, rollback completo
+     * ✅ Crea una venta con items y descuenta stock
+     * - FACTURA: máximo 9 productos distintos
      */
     async createConItems(dto) {
         if (!dto.items?.length)
             throw new Error("items es requerido y no puede venir vacío");
         const IVA = 0.19;
         const modoIva = dto.modo_iva === "neto" ? "neto" : "incluye_iva";
+        // ✅ tipo documento
+        const tipo = dto.tipo_documento === "factura" ? "factura" : "boleta";
+        // ✅ VALIDACIÓN: máximo 9 productos distintos en FACTURA
+        if (tipo === "factura") {
+            const productosDistintos = new Set(dto.items.map((i) => Number(i.ID_producto)));
+            if (productosDistintos.size > 9) {
+                throw new Error("Una factura solo puede contener hasta 9 productos distintos. Debes dividir la venta en otra factura.");
+            }
+        }
         // Validación básica de items
         for (const [i, it] of dto.items.entries()) {
             if (it.ID_producto == null || Number.isNaN(Number(it.ID_producto))) {
                 throw new Error(`items[${i}].ID_producto inválido`);
             }
-            if (it.cantidad == null || Number.isNaN(Number(it.cantidad)) || Number(it.cantidad) <= 0) {
+            if (it.cantidad == null || Number(it.cantidad) <= 0) {
                 throw new Error(`items[${i}].cantidad inválida`);
             }
         }
@@ -149,47 +149,36 @@ class VentasService {
             const ventaRepo = manager.getRepository(ventaEntity_1.VentaEntity);
             const regRepo = manager.getRepository(registro_ventaEntity_1.Registro_ventaEntity);
             const prodRepo = manager.getRepository(productoEntity_1.ProductoEntity);
-            // ✅ tipo documento
-            const tipo = dto.tipo_documento === "factura" ? "factura" : "boleta";
-            // ✅ normalizar cliente + reglas
             const idClienteNorm = this.normalizeIdCliente(dto.ID_cliente) ?? null;
             if (tipo === "factura" && !idClienteNorm) {
                 throw new Error("Para Factura debes seleccionar un cliente");
             }
-            // 1) Traer productos
             const ids = dto.items.map((i) => Number(i.ID_producto));
             const productos = await prodRepo
                 .createQueryBuilder("p")
                 .where("p.ID_producto IN (:...ids)", { ids })
                 .getMany();
             const mapProd = new Map(productos.map((p) => [p.ID_producto, p]));
-            // 2) Sumar cantidades por producto
             const qtyPorProducto = new Map();
             for (const it of dto.items) {
                 const idp = Number(it.ID_producto);
-                const qty = Number(it.cantidad);
-                qtyPorProducto.set(idp, (qtyPorProducto.get(idp) ?? 0) + qty);
+                qtyPorProducto.set(idp, (qtyPorProducto.get(idp) ?? 0) + Number(it.cantidad));
             }
-            // 3) Validar existencia + stock suficiente
-            for (const [idp, qtyTotal] of qtyPorProducto.entries()) {
+            for (const [idp, qty] of qtyPorProducto.entries()) {
                 const prod = mapProd.get(idp);
                 if (!prod)
-                    throw new Error(`Producto no encontrado (ID_producto=${idp})`);
-                if (prod.stock < qtyTotal) {
-                    throw new Error(`Stock insuficiente para "${prod.nombre}" (ID=${idp}). Disponible: ${prod.stock}, requerido: ${qtyTotal}`);
+                    throw new Error(`Producto no encontrado (ID=${idp})`);
+                if (prod.stock < qty) {
+                    throw new Error(`Stock insuficiente para "${prod.nombre}". Disponible: ${prod.stock}, requerido: ${qty}`);
                 }
             }
-            // 4) Normalizar items calculando subtotal
             const itemsNormalizados = dto.items.map((it) => {
                 const prod = mapProd.get(Number(it.ID_producto));
                 const cantidad = Number(it.cantidad);
                 const base = prod.precio_venta * cantidad;
                 const subtotal = modoIva === "neto"
-                    ? Math.round(base * (1 + IVA)) // neto -> cobras con IVA
-                    : base; // incluye IVA -> cobras tal cual
-                if (it.subtotal != null && Number(it.subtotal) !== subtotal) {
-                    throw new Error(`Subtotal inválido para producto ID=${prod.ID_producto}. Esperado: ${subtotal}, recibido: ${it.subtotal}`);
-                }
+                    ? Math.round(base * (1 + IVA))
+                    : base;
                 return {
                     producto: prod,
                     ID_producto: prod.ID_producto,
@@ -197,8 +186,7 @@ class VentasService {
                     subtotal,
                 };
             });
-            const total = itemsNormalizados.reduce((acc, it) => acc + it.subtotal, 0);
-            // 5) Crear venta (✅ con tipo_documento + regla cliente)
+            const total = itemsNormalizados.reduce((a, b) => a + b.subtotal, 0);
             const venta = ventaRepo.create({
                 tipo_documento: tipo,
                 modo_iva: modoIva,
@@ -208,13 +196,11 @@ class VentasService {
                 fecha: dto.fecha ? new Date(dto.fecha) : undefined,
             });
             const savedVenta = await ventaRepo.save(venta);
-            // 6) Descontar stock
-            for (const [idp, qtyTotal] of qtyPorProducto.entries()) {
+            for (const [idp, qty] of qtyPorProducto.entries()) {
                 const prod = mapProd.get(idp);
-                prod.stock = prod.stock - qtyTotal;
+                prod.stock -= qty;
             }
             await prodRepo.save([...mapProd.values()]);
-            // 7) Crear registros
             const registros = itemsNormalizados.map((it) => regRepo.create({
                 ID_producto: it.ID_producto,
                 cantidad: it.cantidad,
@@ -223,48 +209,47 @@ class VentasService {
                 producto: it.producto,
             }));
             await regRepo.save(registros);
-            // 8) Devolver venta con items
-            const full = await ventaRepo.findOne({
+            return await ventaRepo.findOne({
                 where: { ID_venta: savedVenta.ID_venta },
                 relations: { registroVentas: true },
             });
-            return full ?? savedVenta;
         });
     }
-    // ✅ helper: calcula neto/iva desde un total "final"
-    calcResumen(total, conIva, tasa = 0.19) {
-        const t = Math.round(Number(total) || 0);
-        if (!conIva) {
-            return { neto: t, iva: 0, total: t };
-        }
-        const neto = Math.round(t / (1 + tasa));
-        const iva = t - neto;
-        return { neto, iva, total: t };
-    }
     /**
-     * ✅ Venta lista para imprimir / mostrar resumen
-     * - trae venta + registroVentas + producto
-     * - genera resumen con IVA o sin IVA (según parámetro)
-     */
-    async getVentaParaImprimir(idVenta, conIva) {
+   * ✅ Devuelve una venta lista para imprimir (items + producto + cliente)
+   * Calcula resumen neto/iva solo si conIva = true y modo_iva = "neto"
+   */
+    async getVentaParaImprimir(idVenta, conIvaOverride) {
         if (!idVenta || Number.isNaN(Number(idVenta)))
-            throw new Error("idVenta inválido");
-        const ventaRepo = this.repo();
-        const venta = await ventaRepo.findOne({
+            throw new Error("id_venta inválido");
+        const venta = await this.repo().findOne({
             where: { ID_venta: idVenta },
-            relations: { registroVentas: { producto: true } }, // 👈 importante
+            relations: {
+                cliente: true,
+                registroVentas: { producto: true },
+            },
         });
         if (!venta)
             throw new Error("Venta no encontrada");
-        // ✅ si no te mandan conIva, decisión por tipo_documento:
-        // - boleta: normalmente NO desglosas (conIva=false)
-        // - factura: normalmente SI desglosas (conIva=true)
-        const modoIva = venta.modo_iva ?? "incluye_iva";
-        const conIvaFinal = typeof conIva === "boolean"
-            ? conIva
+        const IVA = 0.19;
+        // si viene override lo respetamos; si no, por defecto:
+        // - boleta: false
+        // - factura: true (porque normalmente quieres desglose)
+        const conIvaFinal = typeof conIvaOverride === "boolean"
+            ? conIvaOverride
             : venta.tipo_documento === "factura";
-        const resumen = this.calcResumen(venta.total, conIvaFinal);
-        return { venta, resumen, conIva: conIvaFinal, modoIva: venta.modo_iva ?? "incluye_iva" };
+        // Resumen: si modo_iva = neto y conIvaFinal true => desglosa
+        const total = Number(venta.total ?? 0);
+        let resumen;
+        if (conIvaFinal && venta.modo_iva === "neto") {
+            const neto = Math.round(total / (1 + IVA));
+            const iva = total - neto;
+            resumen = { neto, iva, total };
+        }
+        else {
+            resumen = { neto: total, iva: 0, total };
+        }
+        return { venta, resumen, conIva: conIvaFinal };
     }
 }
 exports.VentasService = VentasService;

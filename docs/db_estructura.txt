@@ -24,7 +24,8 @@ CREATE TABLE producto(
     marca VARCHAR(255) NOT NULL DEFAULT 0,
     proveedor VARCHAR(255) NOT NULL DEFAULT 0,
     precio_compra INT NOT NULL DEFAULT 0,
-    stock INT NOT NULL DEFAULT 0,
+    stock DECIMAL NOT NULL DEFAULT 0,
+    unidad_medida ENUM('mt', 'lt', 'unitario') NOT NULL,
     precio_venta INT NOT NULL DEFAULT 0
 );
 
