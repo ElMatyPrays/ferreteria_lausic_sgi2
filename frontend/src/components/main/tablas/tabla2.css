@@ -1,0 +1,133 @@
+/* src/components/main/tablas/tabla2.css */
+
+.mc-table {
+  width: 100%;
+  border-collapse: collapse;
+  background: var(--mc-card);
+  color: var(--mc-text);
+  border: 1px solid var(--mc-grid);
+  border-radius: 12px;
+  overflow: hidden;
+
+  /* ✅ Importantísimo: evita que el contenido cambie el layout de columnas */
+  table-layout: fixed;
+}
+
+/* celdas */
+.mc-table th,
+.mc-table td {
+  border: 1px solid var(--mc-grid);
+  padding: 10px 12px;
+  text-align: left;
+
+  /* ✅ evita que textos largos deformen todo */
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.mc-table thead th {
+  position: sticky;
+  top: 0;
+  background: var(--mc-panel);
+  font-weight: 600;
+  font-size: 14px;
+  z-index: 1;
+}
+
+.mc-table tbody tr:hover {
+  background: #2f3033;
+}
+
+/* alineaciones */
+.mc-align-left { text-align: left; }
+.mc-align-center { text-align: center; }
+.mc-align-right { text-align: right; }
+
+/* ✅ Permitir que “nombre” se parta en varias líneas
+   OJO: esto funciona aún sin tocar el TSX si el orden de columnas siempre es:
+   SKU, codigo_barras, nombre, tipo, proveedor, ...  => nombre sería 3ra columna.
+*/
+.mc-table th:nth-child(3),
+.mc-table td:nth-child(3) {
+  white-space: normal;
+  word-break: break-word;
+}
+
+/* acciones */
+.mc-actions {
+  display: inline-flex;
+  gap: 10px;
+  align-items: center;
+  justify-content: center;
+}
+
+.mc-icon-btn {
+  width: 34px;
+  height: 34px;
+  border-radius: 10px;
+  border: 1px solid var(--mc-grid);
+  background: transparent;
+  color: var(--mc-text);
+  cursor: pointer;
+
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+
+  transition: background 0.15s ease, transform 0.12s ease, border-color 0.15s ease;
+}
+
+.mc-icon-btn svg {
+  width: 18px;
+  height: 18px;
+}
+
+.mc-icon-btn:hover {
+  background: #ffffff10;
+  transform: translateY(-1px);
+  border-color: #ffffff30;
+}
+
+.mc-icon-btn.mc-edit { color: #facc15; }
+
+.mc-icon-btn.mc-danger { color: #cbd5e1; }
+.mc-icon-btn.mc-danger:hover {
+  color: #ef4444;
+  background: #ef444420;
+  border-color: #ef444450;
+}
+
+/* Pills */
+.dt-pill {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  padding: 4px 10px;
+  border-radius: 999px;
+  font-weight: 700;
+  font-size: 12px;
+  border: 1px solid transparent;
+}
+
+.dt-pill-ok {
+  background: rgba(34, 197, 94, 0.18);
+  border-color: rgba(34, 197, 94, 0.35);
+  color: #22c55e;
+}
+
+.dt-pill-bad {
+  background: rgba(239, 68, 68, 0.18);
+  border-color: rgba(239, 68, 68, 0.35);
+  color: #ef4444;
+}
+
+.dt-file-link {
+  text-decoration: underline;
+  cursor: pointer;
+  font-size: 13px;
+}
+
+.dt-file-link:hover {
+  opacity: 0.85;
+}

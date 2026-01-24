@@ -1,0 +1,174 @@
+/* src/components/main/maincontent.css */
+
+.mc-root {
+  --mc-panel: #2a2b2d;
+  --mc-card: #232427;
+  --mc-muted: #c9ccd1;
+  --mc-text: #f3f4f6;
+  --mc-grid: #3a3b3f;
+
+  display: grid;
+  grid-template-rows: auto auto 1fr; /* header + tabs(opcional) + tabla */
+  height: 100%;
+  width: 100%;
+  min-height: 0; /* ✅ CLAVE en grid */
+  background: var(--mc-bg);
+  color: var(--mc-text);
+  border-left: 1px solid #00000055;
+}
+
+/* HEADER DE PÁGINA CON BOTÓN CREAR */
+.mc-page-header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: 12px 16px;
+  background: var(--mc-panel);
+  border-bottom: 1px solid #00000055;
+}
+
+.mc-title {
+  margin: 0;
+  font-size: 20px;
+  letter-spacing: 0.5px;
+}
+
+/* BOTONES */
+.mc-btn {
+  padding: 8px 14px;
+  border-radius: 8px;
+  border: 1px solid transparent;
+  background: var(--mc-card);
+  color: var(--mc-text);
+  cursor: pointer;
+
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+}
+.mc-btn-primary {
+  background: #3b82f6;
+  color: white;
+}
+.mc-btn:hover {
+  filter: brightness(1.05);
+}
+
+.mc-actions {
+  display: flex;
+  gap: 8px;
+  align-items: center;
+}
+
+.mc-btn svg {
+  width: 16px;
+  height: 16px;
+}
+
+.spin {
+  animation: spin 0.9s linear infinite;
+}
+@keyframes spin {
+  to {
+    transform: rotate(360deg);
+  }
+}
+
+/* ===== TABS ===== */
+.mc-tabs {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  padding: 12px 16px;
+  background: var(--mc-panel);
+  height: 22px;
+}
+
+.mc-tab {
+  flex: 0 0 auto;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  height: 36px;
+  padding: 0 14px;
+  border-radius: 999px;
+  border: 1px solid var(--mc-grid);
+  background: var(--mc-card);
+  color: var(--mc-text);
+  font-size: 14px;
+  line-height: 1;
+  white-space: nowrap;
+  cursor: pointer;
+}
+.mc-tab:hover {
+  filter: brightness(1.05);
+}
+.mc-tab.active {
+  background: #3b82f6;
+  color: #fff;
+  border-color: transparent;
+}
+
+.mc-tabs .mc-tab {
+  width: auto !important;
+  height: 36px !important;
+  display: inline-flex !important;
+}
+
+/* ✅ CONTENEDOR DE LA TABLA (scroll SOLO aquí) */
+.mc-table-wrap {
+  padding: 8px 16px 16px;
+
+  /* ✅ Esto permite scroll vertical y horizontal dentro de la tabla */
+  overflow: auto;
+
+  /* ✅ Evita que el grid “empuje” o desordene al aparecer el scrollbar */
+  min-height: 0;
+  scrollbar-gutter: stable;
+
+  /* ✅ nada de height:100vh aquí */
+}
+
+/* ESTADO VACÍO */
+.mc-empty {
+  text-align: center;
+  padding: 28px 0;
+  opacity: 0.8;
+}
+
+/* Intensidad de colores de stock */
+.stock-high {
+  background-color: rgba(16, 185, 129, 0.18);
+  color: #22c55e;
+  font-weight: 600;
+  padding: 2px 10px;
+}
+.stock-medium {
+  background-color: rgba(234, 179, 8, 0.18);
+  color: #eab308;
+  font-weight: 600;
+  padding: 2px 10px;
+}
+.stock-low {
+  background-color: rgba(248, 113, 113, 0.18);
+  color: #ef4444;
+  font-weight: 600;
+  padding: 2px 10px;
+}
+.stock-zero {
+  background-color: rgba(15, 23, 42, 0.5);
+  color: #696969d5;
+  font-weight: 600;
+  padding: 2px 10px;
+}
+
+/* form groups (modal productos) */
+.form-group {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+}
+.form-group span {
+  font-size: 12px;
+  opacity: 0.85;
+}

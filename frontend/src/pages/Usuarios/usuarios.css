@@ -1,0 +1,228 @@
+/* Alineado al layout del proyecto (como MainContent) */
+.usuarios-wrap {
+  width: 100%;
+  padding: 12px 24px 16px 16px; /* ⬅️ más aire a la derecha */
+}
+
+
+/* Header tipo panel (como los headers del maincontent) */
+.usuarios-header {
+  background: var(--mc-panel, #2a2b2d);
+  border: 1px solid #00000055;
+  border-radius: 14px;
+  padding: 12px 16px;
+  margin-bottom: 12px;
+}
+
+.usuarios-h2 {
+  margin: 0 0 4px 0;
+  font-size: 20px;
+  letter-spacing: 0.5px;
+  color: var(--mc-text, #f3f4f6);
+}
+
+.usuarios-sub {
+  margin: 0;
+  color: var(--mc-muted, #c9ccd1);
+  font-size: 13px;
+}
+
+/* Grid como el resto: form a la izq, listado grande a la derecha */
+.usuarios-grid {
+  display: grid;
+  grid-template-columns: 360px 1fr;
+  gap: 12px;
+  margin-right: 30px;
+  align-items: start;
+}
+
+/* Cards estilo main */
+.usuarios-card {
+  background: var(--mc-card, #232427);
+  border: 1px solid var(--mc-grid, #3a3b3f);
+  border-radius: 14px;
+  box-shadow: 0 10px 30px rgba(0, 0, 0, .22);
+  padding: 14px 20px;
+}
+
+/* Titulos */
+.usuarios-h3 {
+  margin: 0 0 10px;
+  font-size: 16px;
+  color: var(--mc-text, #f3f4f6);
+}
+
+/* Form */
+.usuarios-form {
+  display: grid;
+  gap: 10px;
+}
+
+.usuarios-field {
+  display: grid;
+  gap: 6px;
+}
+
+.usuarios-field label {
+  font-size: 12px;
+  color: var(--mc-muted, #c9ccd1);
+}
+
+.usuarios-field input,
+.usuarios-field select {
+  padding: 10px 12px;
+  border-radius: 10px;
+  border: 1px solid var(--mc-grid, #3a3b3f);
+  background: var(--mc-panel, #2a2b2d);
+  color: var(--mc-text, #f3f4f6);
+  outline: none;
+}
+
+.usuarios-field input:focus,
+.usuarios-field select:focus {
+  border-color: rgba(255,255,255,.20);
+}
+
+/* Botones estilo main */
+.usuarios-btn {
+  padding: 10px 12px;
+  border-radius: 10px;
+  border: 1px solid transparent;
+  background: #81b0ee;
+  color: white;
+  cursor: pointer;
+  font-weight: 700;
+}
+
+.usuarios-btn:hover { filter: brightness(1.05); }
+
+.usuarios-btn.secondary {
+  background: var(--mc-card, #232427);
+  border: 1px solid var(--mc-grid, #3a3b3f);
+  color: var(--mc-text, #f3f4f6);
+  font-weight: 600;
+  padding: 8px 10px;
+}
+
+/* Cabecera del card listado */
+.usuarios-card-head {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 10px;
+  margin-bottom: 10px;
+}
+
+/* Tabla con look main */
+.usuarios-table-wrap {
+  border-radius: 12px;
+  overflow: hidden;
+  border: 1px solid var(--mc-grid, #3a3b3f);
+}
+
+.usuarios-table {
+  width: 100%;
+  border-collapse: collapse;
+  background: var(--mc-card, #232427);
+  color: var(--mc-text, #f3f4f6);
+}
+
+.usuarios-table th,
+.usuarios-table td {
+  padding: 10px 12px;
+  border-bottom: 1px solid var(--mc-grid, #3a3b3f);
+  text-align: left;
+  font-size: 13px;
+}
+
+.usuarios-table thead th {
+  background: var(--mc-panel, #2a2b2d);
+  font-weight: 600;
+  font-size: 14px;
+}
+
+.usuarios-table tbody tr:hover {
+  background: #2f3033;
+}
+
+.usuarios-muted {
+  opacity: .8;
+  font-size: 13px;
+  color: var(--mc-muted, #c9ccd1);
+}
+
+/* Badge rol */
+.usuarios-badge {
+  display: inline-flex;
+  align-items: center;
+  padding: 3px 10px;
+  border-radius: 999px;
+  border: 1px solid var(--mc-grid, #3a3b3f);
+  font-size: 12px;
+  font-weight: 800;
+}
+
+.usuarios-badge.admin { background: rgba(255, 99, 71, .12); }
+.usuarios-badge.operador { background: rgba(234, 179, 8, .12); }
+.usuarios-badge.lector { background: rgba(34, 197, 94, .12); }
+
+/* Responsive */
+@media (max-width: 980px) {
+  .usuarios-grid {
+    grid-template-columns: 1fr;
+  }
+}
+
+
+
+/* ===== ACCIONES (EDITAR / ELIMINAR) ===== */
+
+.mc-actions {
+  display: inline-flex;
+  gap: 10px;
+  align-items: center;
+  justify-content: center;
+}
+
+.mc-icon-btn {
+  width: 34px;
+  height: 34px;
+  border-radius: 10px;
+  border: 1px solid var(--mc-grid);
+  background: transparent;
+  color: var(--mc-text);
+  cursor: pointer;
+
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+
+  transition: background 0.15s ease, transform 0.12s ease, border-color 0.15s ease;
+}
+
+.mc-icon-btn svg {
+  width: 18px;
+  height: 18px;
+}
+
+.mc-icon-btn:hover {
+  background: #ffffff10;
+  transform: translateY(-1px);
+  border-color: #ffffff30;
+}
+
+/* Edit (amarillo como tu captura) */
+.mc-icon-btn.mc-edit {
+  color: #facc15;
+}
+
+/* Delete (gris/rojo suave) */
+.mc-icon-btn.mc-danger {
+  color: #cbd5e1;
+}
+
+.mc-icon-btn.mc-danger:hover {
+  color: #ef4444;
+  background: #ef444420;
+  border-color: #ef444450;
+}
